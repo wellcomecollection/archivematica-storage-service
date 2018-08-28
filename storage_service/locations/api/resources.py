@@ -529,6 +529,9 @@ class PackageResource(ModelResource):
 
     Validate fixity (api/v1/file/<uuid>/check_fixity/) supports:
     GET: Scan package for fixity
+
+    Compress package (api/v1/file/<uuid>/compress/) supports:
+    PUT: Compress an existing Package
     """
     origin_pipeline = fields.ForeignKey(PipelineResource, 'origin_pipeline')
     origin_location = fields.ForeignKey(LocationResource, None, use_in=lambda x: False)
@@ -584,6 +587,7 @@ class PackageResource(ModelResource):
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)/download%s$" % (self._meta.resource_name, self._meta.detail_uri_name, trailing_slash()), self.wrap_view('download_request'), name="download_request"),
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)/pointer_file%s$" % (self._meta.resource_name, self._meta.detail_uri_name, trailing_slash()), self.wrap_view('pointer_file_request'), name="pointer_file_request"),
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)/check_fixity%s$" % (self._meta.resource_name, self._meta.detail_uri_name, trailing_slash()), self.wrap_view('check_fixity_request'), name="check_fixity_request"),
+            url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)/compress%s$" % (self._meta.resource_name, self._meta.detail_uri_name, trailing_slash()), self.wrap_view('compress_request'), name="compress_request"),
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)/send_callback/post_store%s$" % (self._meta.resource_name, self._meta.detail_uri_name, trailing_slash()), self.wrap_view('aip_store_callback_request'), name="aip_store_callback_request"),
             url(r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)/contents%s$" % (self._meta.resource_name, self._meta.detail_uri_name, trailing_slash()), self.wrap_view("manage_contents"), name="manage_contents"),
             url(r"^(?P<resource_name>%s)/metadata%s$" % (self._meta.resource_name, trailing_slash()), self.wrap_view("file_data"), name="file_data"),
@@ -966,6 +970,18 @@ class PackageResource(ModelResource):
             content_type="application/json"
         )
 
+    @_custom_endpoint(expected_methods=['put'])
+    def compress_request(self, request, bundle, **kwargs):
+        """Compress an existing package.
+
+        PUT /api/v1/file/<uuid>/compress/
+        """
+        return http.HttpResponse(
+            {'response':
+             'You want to compress package {}'.format(bundle.obj.uuid)},
+            content_type="application/json"
+        )
+
     @_custom_endpoint(expected_methods=['get'])
     def aip_store_callback_request(self, request, bundle, **kwargs):
         package = bundle.obj
@@ -1097,6 +1113,11 @@ class PackageResource(ModelResource):
         return sword_views.deposit_state(request, package or kwargs['uuid'])
 
     def _attempt_package_request_event(self, package, request_info, event_type, event_status):
+
+        import pprint
+        LOGGER.info('PACKAGE DELETE REQUEST:')
+        LOGGER.info(pprint.pformat(request_info))
+
         pipeline = Pipeline.objects.get(uuid=request_info['pipeline'])
         request_description = event_type.replace('_', ' ').lower()
 
