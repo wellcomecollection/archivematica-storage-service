@@ -78,6 +78,7 @@
           {% endif %}
           {% if package.package_type in package.PACKAGE_TYPE_CAN_DELETE %}
           <a href="#" class="request-delete"
+             data-package-type="{{ package.package_type }}"
              data-package-uuid="{{ package.uuid }}"
              data-package-pipeline="{{ package.origin_pipeline.uuid }}"
              >{% trans "Request Deletion" %}</a>

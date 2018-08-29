@@ -120,7 +120,7 @@ class Package(models.Model):
     local_path = None
     local_path_location = None
 
-    PACKAGE_TYPE_CAN_DELETE = (AIP, AIC, TRANSFER)
+    PACKAGE_TYPE_CAN_DELETE = (AIP, AIC, TRANSFER, DIP)
     PACKAGE_TYPE_CAN_EXTRACT = (AIP, AIC)
     PACKAGE_TYPE_CAN_RECOVER = (AIP, AIC)
     PACKAGE_TYPE_CAN_REINGEST = (AIP, AIC)
