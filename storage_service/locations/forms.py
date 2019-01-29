@@ -536,3 +536,9 @@ class ReingestForm(forms.Form):
         help_text=_("Optional: The processing config is only used with full re-ingest"),
         widget=forms.TextInput(attrs={"placeholder": "default"}),
     )
+
+
+class WellcomeStorageServiceForm(forms.ModelForm):
+    class Meta:
+        model = models.WellcomeStorageService
+        fields = ("token_url", "api_root_url", "app_client_id", "app_client_secret")

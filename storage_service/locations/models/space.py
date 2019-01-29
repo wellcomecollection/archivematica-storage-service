@@ -145,6 +145,7 @@ class Space(models.Model):
     SWIFT = "SWIFT"
     GPG = "GPG"
     S3 = "S3"
+    WELLCOME = "WELLCOME"
     # These will not be displayed in the Space Create GUI (see locations/forms.py)
     BETA_PROTOCOLS = {}
     OBJECT_STORAGE = {DATAVERSE, DSPACE, DSPACE_REST, DURACLOUD, SWIFT, S3}
@@ -162,6 +163,7 @@ class Space(models.Model):
         (PIPELINE_LOCAL_FS, _("Pipeline Local Filesystem")),
         (SWIFT, _("Swift")),
         (S3, _("S3")),
+        (WELLCOME, _("Wellcome Storage Service"))
     )
     access_protocol = models.CharField(
         max_length=8,
