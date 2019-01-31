@@ -541,4 +541,15 @@ class ReingestForm(forms.Form):
 class WellcomeStorageServiceForm(forms.ModelForm):
     class Meta:
         model = models.WellcomeStorageService
-        fields = ("token_url", "api_root_url", "app_client_id", "app_client_secret")
+        fields = (
+            "token_url",
+            "api_root_url",
+            "app_client_id",
+            "app_client_secret",
+            "aws_access_key_id",
+            "aws_secret_access_key",
+            "aws_assumed_role",
+            "s3_endpoint_url",
+            "s3_region",
+            "s3_bucket",
+        )

@@ -7,7 +7,7 @@ from django.db import migrations, models
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('locations', '0020_dspace_rest'),
+        ('locations', '0025_update_package_size'),
     ]
 
     operations = [
@@ -19,6 +19,12 @@ class Migration(migrations.Migration):
                 ('api_root_url', models.URLField(help_text='Root URL of the storage service API, e.g. https://api.wellcomecollection.org/', max_length=256)),
                 ('app_client_id', models.CharField(max_length=300, null=True, blank=True)),
                 ('app_client_secret', models.CharField(max_length=300, null=True, blank=True)),
+                ('s3_endpoint_url', models.CharField(help_text='S3 Endpoint URL. Eg. https://s3.amazonaws.com', max_length=2048, verbose_name='S3 Endpoint URL')),
+                ('aws_access_key_id', models.CharField(max_length=64, verbose_name='Access Key ID to authenticate')),
+                ('aws_secret_access_key', models.CharField(max_length=256, verbose_name='Secret Access Key to authenticate with')),
+                ('aws_assumed_role', models.CharField(max_length=256, verbose_name='Assumed AWS IAM Role', blank=True)),
+                ('s3_region', models.CharField(help_text='Region in S3. Eg. us-east-2', max_length=64, verbose_name='S3 Region')),
+                ('s3_bucket', models.CharField(help_text='S3 Bucket for temporary storage', max_length=64, verbose_name='S3 Bucket')),
             ],
             options={
                 'verbose_name': 'Wellcome Storage Service',
