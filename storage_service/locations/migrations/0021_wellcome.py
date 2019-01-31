@@ -19,6 +19,11 @@ class Migration(migrations.Migration):
                 ('api_root_url', models.URLField(help_text='Root URL of the storage service API, e.g. https://api.wellcomecollection.org/', max_length=256)),
                 ('app_client_id', models.CharField(max_length=300, null=True, blank=True)),
                 ('app_client_secret', models.CharField(max_length=300, null=True, blank=True)),
+                ('s3_endpoint_url', models.CharField(help_text='S3 Endpoint URL. Eg. https://s3.amazonaws.com', max_length=2048, verbose_name='S3 Endpoint URL')),
+                ('s3_access_key_id', models.CharField(max_length=64, verbose_name='Access Key ID to authenticate')),
+                ('s3_secret_access_key', models.CharField(max_length=256, verbose_name='Secret Access Key to authenticate with')),
+                ('s3_region', models.CharField(help_text='Region in S3. Eg. us-east-2', max_length=64, verbose_name='Region')),
+                ('s3_bucket', models.CharField(help_text='Bucket in S3', max_length=64, verbose_name='Bucket')),
             ],
             options={
                 'verbose_name': 'Wellcome Storage Service',
