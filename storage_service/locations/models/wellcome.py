@@ -1,3 +1,5 @@
+import logging
+
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
@@ -6,6 +8,7 @@ from .location import Location
 
 TOKEN_HELP_TEXT = _('URL of the OAuth token endpoint, e.g. https://auth.wellcomecollection.org/oauth2/token')
 API_HELP_TEXT = _('Root URL of the storage service API, e.g. https://api.wellcomecollection.org/')
+LOGGER = logging.getLogger(__name__)
 
 
 class WellcomeStorageService(models.Model):
@@ -18,18 +21,24 @@ class WellcomeStorageService(models.Model):
     app_client_secret = models.CharField(max_length=300, blank=True, null=True)
 
     def browse(self, path):
-        pass
+        LOGGER.debug('Browsing %s on Wellcome storage' % path)
+        return {
+            'directories': set(),
+            'entries': set(),
+            'properties': {},
+        }
 
     def delete_path(self, delete_path):
-        pass
+        LOGGER.debug('Deleting %s from Wellcome storage' % delete_path)
 
     def move_to_storage_service(self, src_path, dest_path, dest_space):
         """ Moves src_path to dest_space.staging_path/dest_path. """
-        pass
+        LOGGER.debug('Fetching %s from %s (%s) on Wellcome storage' % (
+            src_path, dest_path, dest_space))
 
-    def move_from_storage_service(self, source_path, destination_path, package=None):
+    def move_from_storage_service(self, src_path, dest_path, package=None):
         """ Moves self.staging_path/src_path to dest_path. """
-        pass
+        LOGGER.debug('Moving %s to %s on Wellcome storage' % (src_path, dest_path))
 
     class Meta:
         verbose_name = _("Wellcome Storage Service")
