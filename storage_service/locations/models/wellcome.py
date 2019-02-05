@@ -1,7 +1,11 @@
 import logging
+from urlparse import urljoin
 
 import os
 import boto3
+import requests
+from requests_oauthlib import OAuth2Session
+from oauthlib.oauth2 import BackendApplicationClient
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
@@ -12,6 +16,98 @@ from .location import Location
 TOKEN_HELP_TEXT = _('URL of the OAuth token endpoint, e.g. https://auth.wellcomecollection.org/oauth2/token')
 API_HELP_TEXT = _('Root URL of the storage service API, e.g. https://api.wellcomecollection.org/')
 LOGGER = logging.getLogger(__name__)
+
+
+class WellcomeStorageServiceClient(object):
+    """
+    Client for the Wellcome Storage API
+    """
+
+    def __init__(self, api_url, oauth_details=None):
+        self.api_url = api_url
+        if oauth_details:
+            self.session = self.oauth_session(
+                oauth_details["token_url"],
+                oauth_details["client_id"],
+                oauth_details["client_secret"],
+            )
+        else:
+            self.session = requests.Session()
+
+    def oauth_session(self, token_url, client_id, client_secret):
+        """
+        Create a simple OAuth session
+        """
+        client = BackendApplicationClient(client_id=client_id)
+        api_session = OAuth2Session(client=client)
+        api_session.fetch_token(
+            token_url=token_url, client_id=client_id, client_secret=client_secret
+        )
+        return api_session
+
+    def ingest_payload(self, bag_path, ingest_bucket_name, space):
+        """
+        Generates an ingest bag payload.
+        """
+        return {
+            "type": "Ingest",
+            "ingestType": {"id": "create", "type": "IngestType"},
+            "space": {"id": space, "type": "Space"},
+            "sourceLocation": {
+                "type": "Location",
+                "provider": {"type": "Provider", "id": "aws-s3-standard"},
+                "bucket": ingest_bucket_name,
+                "path": bag_path,
+            },
+        }
+
+    def ingests_endpoint(self):
+        return urljoin(self.api_url, "storage/v1/ingests")
+
+    def ingest_endpoint(self, id):
+        return urljoin(self.api_url, "storage/v1/ingests/" + id)
+
+    def bags_endpoint(self):
+        return urljoin(self.api_url, "storage/v1/bags")
+
+    def bag_endpoint(self, space, source_id):
+        return urljoin(self.api_url, "storage/v1/bags/%s/%s" % (space, source_id))
+
+    def ingest(self, bag_path, ingest_bucket_name, space):
+        """
+        Call the storage ingests api to ingest bags
+        """
+        ingests_endpoint = self.ingests_endpoint()
+        response = self.session.post(
+            ingests_endpoint,
+            json=self.ingest_payload(bag_path, ingest_bucket_name, space),
+        )
+        status_code = response.status_code
+        if status_code == 201:
+            return response.headers.get("Location")
+        else:
+            raise RuntimeError("%s returned %d" % (ingests_endpoint, status_code), response)
+
+    def get_ingest(self, ingest_id):
+        """
+        Call the storage ingests api to get state of an ingest
+        """
+        ingest_endpoint = self.ingest_endpoint(ingest_id)
+        response = self.session.get(ingest_endpoint)
+        status_code = response.status_code
+        if status_code == 200:
+            return response.json()
+        else:
+            raise RuntimeError("%s returned %d" % (ingests_endpoint, status_code), response)
+
+    def get_bag(self, space, source_id):
+        bag_endpoint = self.bag_endpoint(space, source_id)
+        response = self.session.get(bag_endpoint)
+        status_code = response.status_code
+        if status_code == 200:
+            return response.json()
+        else:
+            raise RuntimeError("%s returned %d" % (bag_endpoint, status_code), response)
 
 
 class WellcomeStorageService(models.Model):
@@ -100,13 +196,28 @@ class WellcomeStorageService(models.Model):
 
         if os.path.isfile(src_path):
             # strip leading slash on dest_path
-            dest_path = dest_path.lstrip('/')
+            s3_path = dest_path.lstrip('/')
 
+            # Upload to s3
             with open(src_path, 'rb') as data:
-                bucket.upload_fileobj(data, dest_path)
+                bucket.upload_fileobj(data, s3_path)
+
+            wellcome = WellcomeStorageServiceClient(self.api_root_url, {
+                'token_url': self.token_url,
+                'client_id': self.app_client_id,
+                'client_secret': self.app_client_secret,
+            })
+
+            response = wellcome.ingest(
+                s3_path,
+                self.s3_bucket,
+                'born-digital'
+            )
+            print(response)
+
         else:
             raise StorageException(
-                _('%(path)s is neither a file nor a directory, may not exist') %
+                _('%(path)s is not a file, may be a directory or not exist') %
                 {'path': src_path})
 
 
