@@ -213,7 +213,27 @@ class WellcomeStorageService(models.Model):
                 self.s3_bucket,
                 'born-digital'
             )
-            print(response)
+
+            ingest_id = response.rsplit('/')[-1]
+            LOGGER.info('Ingest_id: %s' % ingest_id)
+
+            # Poll for result. TODO... hook into a callback
+            import time
+            LOGGER.debug('Waiting for bag...')
+            while True:
+                ingest = wellcome.get_ingest(ingest_id)
+                status = ingest['status']['id']
+                LOGGER.debug('Ingest status: %s' % status)
+                if status == 'succeeded':
+                    bag_id = ingest['bag']['id']
+                    LOGGER.info('Bag ID: %s' % bag_id)
+                    break
+                elif status =='failed':
+                    for event in ingest['events']:
+                        LOGGER.info('{type}: {description}'.format(**event))
+                    raise StorageException('AIP upload failed')
+                else:
+                    time.sleep(5)
 
         else:
             raise StorageException(
