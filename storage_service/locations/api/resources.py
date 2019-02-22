@@ -59,6 +59,7 @@ from ..constants import PROTOCOL
 from locations import signals
 
 from ..models.async_manager import AsyncManager
+from ..models.wellcome import handle_ingest
 
 LOGGER = logging.getLogger(__name__)
 
@@ -885,6 +886,16 @@ class PackageResource(ModelResource):
                 ),
                 self.wrap_view("sword_deposit_state"),
                 name="sword_deposit_state",
+            ),
+            url(
+                r"^(?P<resource_name>%s)/(?P<%s>\w[\w/-]*)/wellcome_callback%s$"
+                % (
+                    self._meta.resource_name,
+                    self._meta.detail_uri_name,
+                    trailing_slash()
+                ),
+                self.wrap_view('wellcome_callback'),
+                name="wellcome_callback"
             ),
         ]
 
@@ -1907,6 +1918,20 @@ class PackageResource(ModelResource):
         return http.HttpResponse(
             content=json.dumps(response), content_type="application/json"
         )
+
+    @_custom_endpoint(expected_methods=['post'])
+    def wellcome_callback(self, request, bundle, **kwargs):
+        LOGGER.debug("wellcome package callback")
+        try:
+            package = Package.objects.get(uuid=kwargs['uuid'])
+        except Package.DoesNotExist:
+            LOGGER.error('package %s does not exist' % kwargs['uuid'])
+            return http.Http404()
+
+        ingest = json.loads(request.body)
+        handle_ingest(ingest, package)
+
+        return http.HttpResponse('Wellcome package callback succeeded')
 
 
 class AsyncResource(ModelResource):

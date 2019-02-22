@@ -546,4 +546,7 @@ class WellcomeStorageServiceForm(forms.ModelForm):
             "s3_endpoint_url",
             "s3_region",
             "s3_bucket",
+            "callback_host",
+            "callback_username",
+            "callback_api_key",
         )
