@@ -1,20 +1,24 @@
 import logging
 import os
-from urlparse import urljoin
 
 import boto3
 import requests
+import time
 from requests_oauthlib import OAuth2Session
 from oauthlib.oauth2 import BackendApplicationClient
 from django.db import models
 from django.utils.translation import ugettext_lazy as _
+from django.utils.six.moves.urllib.parse import urljoin, urlencode
 
 from . import StorageException
+from . import Package
 from .location import Location
 
 
 TOKEN_HELP_TEXT = _('URL of the OAuth token endpoint, e.g. https://auth.wellcomecollection.org/oauth2/token')
 API_HELP_TEXT = _('Root URL of the storage service API, e.g. https://api.wellcomecollection.org/')
+CALLBACK_HELP_TEXT = _('Publicly accessible URL of the Archivematica storage service accessible to Wellcome storage service for callback')
+
 LOGGER = logging.getLogger(__name__)
 
 
@@ -45,7 +49,7 @@ class WellcomeStorageServiceClient(object):
         )
         return api_session
 
-    def ingest_payload(self, bag_path, ingest_bucket_name, space):
+    def ingest_payload(self, bag_path, ingest_bucket_name, space, callback):
         """
         Generates an ingest bag payload.
         """
@@ -59,6 +63,10 @@ class WellcomeStorageServiceClient(object):
                 "bucket": ingest_bucket_name,
                 "path": bag_path,
             },
+            "callback": {
+                "type": "Callback",
+                "url": callback,
+            }
         }
 
     def ingests_endpoint(self):
@@ -73,19 +81,21 @@ class WellcomeStorageServiceClient(object):
     def bag_endpoint(self, space, source_id):
         return urljoin(self.api_url, "storage/v1/bags/%s/%s" % (space, source_id))
 
-    def ingest(self, bag_path, ingest_bucket_name, space):
+    def ingest(self, bag_path, ingest_bucket_name, space, callback):
         """
         Call the storage ingests api to ingest bags
         """
         ingests_endpoint = self.ingests_endpoint()
         response = self.session.post(
             ingests_endpoint,
-            json=self.ingest_payload(bag_path, ingest_bucket_name, space),
+            json=self.ingest_payload(bag_path, ingest_bucket_name, space, callback),
         )
         status_code = response.status_code
         if status_code == 201:
             return response.headers.get("Location")
         else:
+            LOGGER.error("%s returned %d" % (ingests_endpoint, status_code))
+            LOGGER.error(response.content)
             raise RuntimeError("%s returned %d" % (ingests_endpoint, status_code), response)
 
     def get_ingest(self, ingest_id):
@@ -108,6 +118,29 @@ class WellcomeStorageServiceClient(object):
             return response.json()
         else:
             raise RuntimeError("%s returned %d" % (bag_endpoint, status_code), response)
+
+
+def handle_ingest(ingest, package):
+    """
+    Handle an ingest json response
+    """
+    status = ingest['status']['id']
+    if status == 'succeeded':
+        bag_id = ingest['bag']['id']
+        package.status = Package.UPLOADED
+        package.misc_attributes['bag_id'] = bag_id
+        package.save()
+        LOGGER.info('Bag ID: %s' % bag_id)
+    elif status =='failed':
+        LOGGER.error('Ingest failed')
+        package.status = Package.FAIL
+        package.save()
+        for event in ingest['events']:
+            LOGGER.info('{type}: {description}'.format(**event))
+    #else:
+    #    LOGGER.error('Unknown ingest status %s' % status)
+    #    package.status = Package.FAIL
+    #    package.save()
 
 
 class WellcomeStorageService(models.Model):
@@ -140,6 +173,10 @@ class WellcomeStorageService(models.Model):
     s3_bucket = models.CharField(max_length=64,
         verbose_name=_('S3 Bucket'),
         help_text=_('S3 Bucket for temporary storage'))
+
+    callback_host = models.URLField(max_length=256, help_text=CALLBACK_HELP_TEXT, blank=True)
+    callback_username = models.CharField(max_length=150, blank=True)
+    callback_api_key = models.CharField(max_length=256, blank=True)
 
     def __init__(self, *args, **kwargs):
         super(WellcomeStorageService, self).__init__(*args, **kwargs)
@@ -208,32 +245,51 @@ class WellcomeStorageService(models.Model):
                 'client_secret': self.app_client_secret,
             })
 
+            callback_url = urljoin(
+                self.callback_host,
+                '/api/v2/file/%s/wellcome_callback/?%s' % (
+                package.uuid,
+                urlencode({
+                    'username': self.callback_username,
+                    'api_key': self.callback_api_key,
+                })))
+            LOGGER.info('Callback will be to %s' % callback_url)
             response = wellcome.ingest(
                 s3_path,
                 self.s3_bucket,
-                'born-digital'
+                'born-digital',
+                callback_url,
             )
 
             ingest_id = response.rsplit('/')[-1]
             LOGGER.info('Ingest_id: %s' % ingest_id)
 
-            # Poll for result. TODO... hook into a callback
-            import time
-            LOGGER.debug('Waiting for bag...')
-            while True:
-                ingest = wellcome.get_ingest(ingest_id)
-                status = ingest['status']['id']
-                LOGGER.debug('Ingest status: %s' % status)
-                if status == 'succeeded':
-                    bag_id = ingest['bag']['id']
-                    LOGGER.info('Bag ID: %s' % bag_id)
-                    break
-                elif status =='failed':
-                    for event in ingest['events']:
-                        LOGGER.info('{type}: {description}'.format(**event))
-                    raise StorageException('AIP upload failed')
-                else:
-                    time.sleep(5)
+            while package.status == Package.STAGING:
+                # Wait for callback to have been called
+                for i in range(6):
+                    package.refresh_from_db()
+                    print('Package status %s' % package.status)
+                    time.sleep(10)
+                    if package.status != Package.STAGING:
+                        break
+
+                if package.status == Package.STAGING:
+                    LOGGER.info("Callback wasn't called yet - let's check the ingest URL")
+
+                    # It wasn't. Query the ingest URL to see if anything happened.
+                    # It's possible we missed the callback (e.g. Archivematica was unavailable?)
+                    # because the storage service won't retry.
+                    ingest = wellcome.get_ingest(ingest_id)
+                    if ingest['callback']['status']['id'] == 'processing':
+                        # Just keep waiting for the callback
+                        LOGGER.info("Still waiting for callback")
+                    else:
+                        # We missed the callback. Take results from the ingest body
+                        LOGGER.info("Ingest result found")
+                        handle_ingest(ingest, package)
+
+            if package.status == Package.FAIL:
+                raise StorageException("Failed to store package %(path)s" % src_path)
 
         else:
             raise StorageException(
