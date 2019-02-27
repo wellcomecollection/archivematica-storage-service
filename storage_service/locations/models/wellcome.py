@@ -129,6 +129,7 @@ def handle_ingest(ingest, package):
         bag_id = ingest['bag']['id']
         package.status = Package.UPLOADED
         package.misc_attributes['bag_id'] = bag_id
+        package.misc_attributes['ingest_id'] = ingest['id']
         package.save()
         LOGGER.info('Bag ID: %s' % bag_id)
     elif status =='failed':
