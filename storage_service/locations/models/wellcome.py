@@ -291,7 +291,9 @@ class WellcomeStorageService(models.Model):
                         handle_ingest(ingest, package)
 
             if package.status == Package.FAIL:
-                raise StorageException("Failed to store package %(path)s" % src_path)
+                raise StorageException(
+                    _("Failed to store package %(path)s") %
+                    {'path': src_path})
 
         else:
             raise StorageException(
