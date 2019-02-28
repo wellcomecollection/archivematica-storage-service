@@ -42,18 +42,3 @@ script:
 notifications:
   email:
     - "wellcomedigitalplatform@wellcome.ac.uk"
-
-matrix:
-  fast_finish: true
-  include:
-    - python: "2.7"
-      env: TOXENV=py27
-    - python: "3.6"
-      env: TOXENV=py36
-    - python: "3.6"
-      env: TOXENV=linting
-    - python: "2.7"
-      env: TOXENV=checkformigrations
-  allow_failures:
-    - python: "3.6"
-      env: TOXENV=py36

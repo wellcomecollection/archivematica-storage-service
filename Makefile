@@ -25,7 +25,7 @@ endef
 
 
 storage_service-build:
-	$(DOCKER_RUN) --dind -- $(IMAGE_BUILDER_IMAGE) --name=archivematica_storage_service .
+	$(DOCKER_RUN) --dind -- $(IMAGE_BUILDER_IMAGE) --name=archivematica_storage_service --path=./Dockerfile
 
 storage_service-publish: storage_service-build
 	$(call publish_service,archivematica_storage_service)
