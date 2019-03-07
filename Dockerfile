@@ -3,7 +3,7 @@ FROM python:2.7-stretch
 ENV DEBIAN_FRONTEND noninteractive
 ENV DJANGO_SETTINGS_MODULE storage_service.settings.production
 ENV PYTHONUNBUFFERED 1
-ENV PYTHONPATH /src/storage_service
+ENV PYTHONPATH /src/storage_service:/opt
 ENV SS_GUNICORN_BIND 0.0.0.0:8000
 ENV SS_GUNICORN_CHDIR /src/storage_service
 ENV SS_GUNICORN_ACCESSLOG -
@@ -29,7 +29,7 @@ ENV LANGUAGE en_US:en
 ENV LC_ALL en_US.UTF-8
 
 ADD requirements/ /src/requirements/
-RUN pip install -q -r /src/requirements/production.txt -r /src/requirements/test.txt
+RUN pip install -q -r /src/requirements/production.txt -r /src/requirements/test.txt --src=/opt
 ADD ./ /src/
 ADD ./install/storage-service.gunicorn-config.py /etc/archivematica/storage-service.gunicorn-config.py
 
