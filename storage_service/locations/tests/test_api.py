@@ -41,8 +41,8 @@ class TestSpaceAPI(TestCase):
             "staging_path": "/",
             # Specific to the S3 protocol.
             "endpoint_url": "http://127.0.0.1:12345",
-            "access_key_id": "Cah4cae1",
-            "secret_access_key": "Thu6Ahqu",
+            "aws_access_key_id": "Cah4cae1",
+            "aws_secret_access_key": "Thu6Ahqu",
             "region": "us-west-2",
         }
         response = self.client.post(

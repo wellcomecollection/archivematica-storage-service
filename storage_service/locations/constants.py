@@ -100,7 +100,7 @@ PROTOCOL = {
     models.Space.S3: {
         "model": models.S3,
         "form": forms.S3Form,
-        "fields": ["endpoint_url", "access_key_id", "secret_access_key", "region"],
+        "fields": ["endpoint_url", "aws_access_key_id", "aws_secret_access_key", "region"],
     },
     models.Space.WELLCOME: {
         'model': models.WellcomeStorageService,
