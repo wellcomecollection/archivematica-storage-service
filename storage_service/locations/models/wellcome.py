@@ -155,15 +155,20 @@ class WellcomeStorageService(models.Model):
     app_client_secret = models.CharField(max_length=300, blank=True, null=True)
 
     # AWS config
-    aws_access_key_id = models.CharField(max_length=64,
+    aws_access_key_id = models.CharField(
+        max_length=64,
+        blank=True,
         verbose_name=_('AWS Access Key ID to authenticate'))
-    aws_secret_access_key = models.CharField(max_length=256,
+
+    aws_secret_access_key = models.CharField(
+        max_length=256,
+        blank=True,
         verbose_name=_('AWS Secret Access Key to authenticate with'))
 
     aws_assumed_role = models.CharField(
         max_length=256,
-        verbose_name=_('Assumed AWS IAM Role'),
         blank=True,
+        verbose_name=_('Assumed AWS IAM Role'),
     )
 
     s3_endpoint_url = models.CharField(max_length=2048,
@@ -187,27 +192,34 @@ class WellcomeStorageService(models.Model):
     @property
     def s3_resource(self):
         if self._s3_resource is None:
-            sts_client = boto3.client(
-                service_name='sts',
-                aws_access_key_id=self.aws_access_key_id,
-                aws_secret_access_key=self.aws_secret_access_key,
-            )
+            if self.aws_access_key_id and self.aws_secret_access_key:
+                sts_client = boto3.client(
+                    service_name='sts',
+                    aws_access_key_id=self.aws_access_key_id,
+                    aws_secret_access_key=self.aws_secret_access_key,
+                )
 
-            # TODO: handle the case where we're not assuming a role
-            assumed_role = sts_client.assume_role(
-                RoleArn=self.aws_assumed_role,
-                RoleSessionName='storage-session',
-            )
-            credentials = assumed_role['Credentials']
+                # TODO: handle the case where we're not assuming a role
+                assumed_role = sts_client.assume_role(
+                    RoleArn=self.aws_assumed_role,
+                    RoleSessionName='storage-session',
+                )
+                credentials = assumed_role['Credentials']
 
-            self._s3_resource = boto3.resource(
-                service_name='s3',
-                endpoint_url=self.s3_endpoint_url,
-                region_name=self.s3_region,
-                aws_access_key_id=credentials['AccessKeyId'],
-                aws_secret_access_key=credentials['SecretAccessKey'],
-                aws_session_token=credentials['SessionToken'],
-            )
+                self._s3_resource = boto3.resource(
+                    service_name='s3',
+                    endpoint_url=self.s3_endpoint_url,
+                    region_name=self.s3_region,
+                    aws_access_key_id=credentials['AccessKeyId'],
+                    aws_secret_access_key=credentials['SecretAccessKey'],
+                    aws_session_token=credentials['SessionToken'],
+                )
+            else:
+                self._s3_resource = boto3.resource(
+                    service_name='s3',
+                    endpoint_url=self.s3_endpoint_url,
+                    region_name=self.s3_region,
+                )
 
         return self._s3_resource
 
