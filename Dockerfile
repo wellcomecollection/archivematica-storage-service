@@ -58,4 +58,10 @@ RUN env \
 
 EXPOSE 8000
 WORKDIR /src/storage_service
-ENTRYPOINT /usr/local/bin/gunicorn --config=/etc/archivematica/storage-service.gunicorn-config.py storage_service.wsgi:application
+
+
+ARG GIT_COMMIT
+ENV GIT_COMMIT=$GIT_COMMIT
+COPY run_storage_service.sh /
+
+ENTRYPOINT ["/run_storage_service.sh"]
