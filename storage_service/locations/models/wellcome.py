@@ -4,11 +4,11 @@ import os
 import boto3
 import requests
 import time
-from requests_oauthlib import OAuth2Session
-from oauthlib.oauth2 import BackendApplicationClient
 from django.db import models
+from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext_lazy as _
 from django.utils.six.moves.urllib.parse import urljoin, urlencode
+from wellcome_storage_service import StorageServiceClient
 
 from . import StorageException
 from . import Package
@@ -16,108 +16,10 @@ from .location import Location
 
 
 TOKEN_HELP_TEXT = _('URL of the OAuth token endpoint, e.g. https://auth.wellcomecollection.org/oauth2/token')
-API_HELP_TEXT = _('Root URL of the storage service API, e.g. https://api.wellcomecollection.org/')
+API_HELP_TEXT = _('Root URL of the storage service API, e.g. https://api.wellcomecollection.org/storage/v1')
 CALLBACK_HELP_TEXT = _('Publicly accessible URL of the Archivematica storage service accessible to Wellcome storage service for callback')
 
 LOGGER = logging.getLogger(__name__)
-
-
-class WellcomeStorageServiceClient(object):
-    """
-    Client for the Wellcome Storage API
-    """
-
-    def __init__(self, api_url, oauth_details=None):
-        self.api_url = api_url
-        if oauth_details:
-            self.session = self.oauth_session(
-                oauth_details["token_url"],
-                oauth_details["client_id"],
-                oauth_details["client_secret"],
-            )
-        else:
-            self.session = requests.Session()
-
-    def oauth_session(self, token_url, client_id, client_secret):
-        """
-        Create a simple OAuth session
-        """
-        client = BackendApplicationClient(client_id=client_id)
-        api_session = OAuth2Session(client=client)
-        api_session.fetch_token(
-            token_url=token_url, client_id=client_id, client_secret=client_secret
-        )
-        return api_session
-
-    def ingest_payload(self, bag_path, ingest_bucket_name, space, callback):
-        """
-        Generates an ingest bag payload.
-        """
-        return {
-            "type": "Ingest",
-            "ingestType": {"id": "create", "type": "IngestType"},
-            "space": {"id": space, "type": "Space"},
-            "sourceLocation": {
-                "type": "Location",
-                "provider": {"type": "Provider", "id": "aws-s3-standard"},
-                "bucket": ingest_bucket_name,
-                "path": bag_path,
-            },
-            "callback": {
-                "type": "Callback",
-                "url": callback,
-            }
-        }
-
-    def ingests_endpoint(self):
-        return urljoin(self.api_url, "storage/v1/ingests")
-
-    def ingest_endpoint(self, id):
-        return urljoin(self.api_url, "storage/v1/ingests/" + id)
-
-    def bags_endpoint(self):
-        return urljoin(self.api_url, "storage/v1/bags")
-
-    def bag_endpoint(self, space, source_id):
-        return urljoin(self.api_url, "storage/v1/bags/%s/%s" % (space, source_id))
-
-    def ingest(self, bag_path, ingest_bucket_name, space, callback):
-        """
-        Call the storage ingests api to ingest bags
-        """
-        ingests_endpoint = self.ingests_endpoint()
-        response = self.session.post(
-            ingests_endpoint,
-            json=self.ingest_payload(bag_path, ingest_bucket_name, space, callback),
-        )
-        status_code = response.status_code
-        if status_code == 201:
-            return response.headers.get("Location")
-        else:
-            LOGGER.error("%s returned %d" % (ingests_endpoint, status_code))
-            LOGGER.error(response.content)
-            raise RuntimeError("%s returned %d" % (ingests_endpoint, status_code), response)
-
-    def get_ingest(self, ingest_id):
-        """
-        Call the storage ingests api to get state of an ingest
-        """
-        ingest_endpoint = self.ingest_endpoint(ingest_id)
-        response = self.session.get(ingest_endpoint)
-        status_code = response.status_code
-        if status_code == 200:
-            return response.json()
-        else:
-            raise RuntimeError("%s returned %d" % (ingests_endpoint, status_code), response)
-
-    def get_bag(self, space, source_id):
-        bag_endpoint = self.bag_endpoint(space, source_id)
-        response = self.session.get(bag_endpoint)
-        status_code = response.status_code
-        if status_code == 200:
-            return response.json()
-        else:
-            raise RuntimeError("%s returned %d" % (bag_endpoint, status_code), response)
 
 
 def handle_ingest(ingest, package):
@@ -199,7 +101,6 @@ class WellcomeStorageService(models.Model):
                     aws_secret_access_key=self.aws_secret_access_key,
                 )
 
-                # TODO: handle the case where we're not assuming a role
                 assumed_role = sts_client.assume_role(
                     RoleArn=self.aws_assumed_role,
                     RoleSessionName='storage-session',
@@ -253,30 +154,31 @@ class WellcomeStorageService(models.Model):
             with open(src_path, 'rb') as data:
                 bucket.upload_fileobj(data, s3_path)
 
-            wellcome = WellcomeStorageServiceClient(self.api_root_url, {
-                'token_url': self.token_url,
-                'client_id': self.app_client_id,
-                'client_secret': self.app_client_secret,
-            })
+            wellcome = StorageServiceClient(
+                api_url=self.api_root_url,
+                token_url=self.token_url,
+                client_id=self.app_client_id,
+                client_secret=self.app_client_secret,
+            )
 
             callback_url = urljoin(
                 self.callback_host,
-                '/api/v2/file/%s/wellcome_callback/?%s' % (
-                package.uuid,
-                urlencode({
-                    'username': self.callback_username,
-                    'api_key': self.callback_api_key,
-                })))
-            LOGGER.info('Callback will be to %s' % callback_url)
-            response = wellcome.ingest(
-                s3_path,
-                self.s3_bucket,
-                'born-digital',
-                callback_url,
-            )
+                '%s?%s' % (
+                    reverse('wellcome_callback', args=['v2', 'file', package.uuid]),
+                    urlencode({
+                        'username': self.callback_username,
+                        'api_key': self.callback_api_key,
+                    })
+                ))
 
-            ingest_id = response.rsplit('/')[-1]
-            LOGGER.info('Ingest_id: %s' % ingest_id)
+            LOGGER.info('Callback will be to %s' % callback_url)
+            location = wellcome.create_s3_ingest(
+                space_id='born-digital',
+                s3_key=s3_path,
+                s3_bucket=self.s3_bucket,
+                callback_url=callback_url,
+            )
+            LOGGER.info('Ingest_location: %s' % location)
 
             while package.status == Package.STAGING:
                 # Wait for callback to have been called
@@ -293,7 +195,7 @@ class WellcomeStorageService(models.Model):
                     # It wasn't. Query the ingest URL to see if anything happened.
                     # It's possible we missed the callback (e.g. Archivematica was unavailable?)
                     # because the storage service won't retry.
-                    ingest = wellcome.get_ingest(ingest_id)
+                    ingest = wellcome.get_ingest_from_location(location)
                     if ingest['callback']['status']['id'] == 'processing':
                         # Just keep waiting for the callback
                         LOGGER.info("Still waiting for callback")
