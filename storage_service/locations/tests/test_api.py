@@ -40,10 +40,10 @@ class TestSpaceAPI(TestCase):
             "path": "",
             "staging_path": "/",
             # Specific to the S3 protocol.
-            "endpoint_url": "http://127.0.0.1:12345",
-            "access_key_id": "Cah4cae1",
-            "secret_access_key": "Thu6Ahqu",
-            "region": "us-west-2",
+            "s3_endpoint_url": "http://127.0.0.1:12345",
+            "aws_access_key_id": "Cah4cae1",
+            "aws_secret_access_key": "Thu6Ahqu",
+            "s3_region": "us-west-2",
         }
         response = self.client.post(
             "/api/v2/space/", data=json.dumps(data), content_type="application/json"
@@ -52,7 +52,7 @@ class TestSpaceAPI(TestCase):
         assert response.status_code == 201
 
         protocol_model = models.S3.objects.get(space_id=response_data["uuid"])
-        assert protocol_model.endpoint_url == data["endpoint_url"]
+        assert protocol_model.s3_endpoint_url == data["s3_endpoint_url"]
 
 
 class TestLocationAPI(TestCase):

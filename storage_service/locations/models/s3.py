@@ -21,68 +21,106 @@ from .location import Location
 LOGGER = logging.getLogger(__name__)
 
 
-class S3(models.Model):
-    space = models.OneToOneField("Space", to_field="uuid")
-    endpoint_url = models.CharField(
-        max_length=2048,
-        verbose_name=_("S3 Endpoint URL"),
-        help_text=_("S3 Endpoint URL. Eg. https://s3.amazonaws.com"),
-    )
-    access_key_id = models.CharField(
-        max_length=64, verbose_name=_("Access Key ID to authenticate")
-    )
-    secret_access_key = models.CharField(
-        max_length=256, verbose_name=_("Secret Access Key to authenticate with")
-    )
-    region = models.CharField(
-        max_length=64,
-        verbose_name=_("Region"),
-        help_text=_("Region in S3. Eg. us-east-2"),
-    )
+class S3SpaceModelMixin(models.Model):
 
     class Meta:
-        verbose_name = _("S3")
-        app_label = "locations"
+        app_label = 'locations'
+        abstract = True
 
-    ALLOWED_LOCATION_PURPOSE = [Location.AIP_STORAGE]
+    # Authentication details
+    aws_access_key_id = models.CharField(
+        max_length=64,
+        blank=True,
+        verbose_name=_('Access Key ID to authenticate')
+    )
 
-    def __init__(self, *args, **kwargs):
-        super(S3, self).__init__(*args, **kwargs)
-        self._client = None
-        self._resource = None
+    aws_secret_access_key = models.CharField(
+        max_length=256,
+        blank=True,
+        verbose_name=_('Secret Access Key to authenticate with')
+    )
 
-    @property
-    def client(self):
-        if self._client is None:
-            self._client = boto3.client(
-                service_name="s3",
-                endpoint_url=self.endpoint_url,
-                aws_access_key_id=self.access_key_id,
-                aws_secret_access_key=self.secret_access_key,
-                region_name=self.region,
-            )
-        return self._client
+    aws_assumed_role = models.CharField(
+        max_length=256,
+        blank=True,
+        verbose_name=_('Assumed AWS IAM Role')
+    )
 
-    @property
-    def resource(self):
-        if self._resource is None:
-            self._resource = boto3.resource(
-                service_name="s3",
-                endpoint_url=self.endpoint_url,
-                aws_access_key_id=self.access_key_id,
-                aws_secret_access_key=self.secret_access_key,
-                region_name=self.region,
-            )
-        return self._resource
+    s3_endpoint_url = models.CharField(
+        max_length=2048,
+        verbose_name=_('S3 Endpoint URL'),
+        help_text=_('S3 Endpoint URL. Eg. https://s3.amazonaws.com')
+    )
+
+    s3_region = models.CharField(
+        max_length=64,
+        verbose_name=_('Region'),
+        help_text=_('Region in S3. Eg. us-east-2')
+    )
+
+    s3_bucket = models.CharField(max_length=64,
+        verbose_name=_('S3 Bucket'),
+        blank=True,
+        help_text=_('S3 Bucket Name'))
 
     def _ensure_bucket_exists(self):
-        self.client.create_bucket(Bucket=self._bucket_name())
+        self.s3_resource.create_bucket(Bucket=self.bucket_name)
 
-    def _bucket_name(self):
-        return self.space_id
+    @property
+    def bucket_name(self):
+        return self.s3_bucket or self.space_id
+
+    @property
+    def s3_resource(self):
+        if not hasattr(self, '_resource'):
+            if self.aws_access_key_id and self.aws_secret_access_key:
+
+                sts_client = boto3.client(
+                    service_name='sts',
+                    aws_access_key_id=self.aws_access_key_id,
+                    aws_secret_access_key=self.aws_secret_access_key,
+                )
+
+                assumed_role = sts_client.assume_role(
+                    RoleArn=self.aws_assumed_role,
+                    RoleSessionName='storage-session',
+                )
+                credentials = assumed_role['Credentials']
+
+                self._resource = boto3.resource(
+                    service_name='s3',
+                    endpoint_url=self.s3_endpoint_url,
+                    region_name=self.s3_region,
+                    aws_access_key_id=credentials['AccessKeyId'],
+                    aws_secret_access_key=credentials['SecretAccessKey'],
+                    aws_session_token=credentials['SessionToken'],
+                )
+            else:
+                self._resource = boto3.resource(
+                    service_name='s3',
+                    endpoint_url=self.s3_endpoint_url,
+                    region_name=self.s3_region,
+                )
+
+        return self._resource
+
+
+
+class S3(S3SpaceModelMixin):
+    space = models.OneToOneField('Space', to_field='uuid')
+
+    class Meta(S3SpaceModelMixin.Meta):
+        verbose_name = _("S3")
+
+    ALLOWED_LOCATION_PURPOSE = [
+        Location.AIP_STORAGE,
+        Location.TRANSFER_SOURCE,
+    ]
 
     def browse(self, path):
         # strip leading slash on path
+        LOGGER.debug('Browsing %s on S3 storage' % path)
+        LOGGER.debug('Bucket: %s' % self.bucket_name)
         path = path.lstrip("/")
 
         # We need a trailing slash on non-empty prefixes because a path like:
@@ -98,7 +136,7 @@ class S3(models.Model):
         if path != "":
             path = path.rstrip("/") + "/"
 
-        objects = self.resource.Bucket(self._bucket_name()).objects.filter(Prefix=path)
+        objects = self.s3_resource.Bucket(self.bucket_name).objects.filter(Prefix=path)
 
         directories = set()
         entries = set()
@@ -115,7 +153,6 @@ class S3(models.Model):
             else:
                 entries.add(relative_key)
                 properties[relative_key] = {
-                    "verbose name": objectSummary.key,
                     "size": objectSummary.size,
                     "timestamp": objectSummary.last_modified,
                     "e_tag": objectSummary.e_tag,
@@ -128,7 +165,7 @@ class S3(models.Model):
         }
 
     def delete_path(self, delete_path):
-        objects = self.resource.Bucket(self._bucket_name()).objects.filter(
+        objects = self.s3_resource.Bucket(self.bucket_name).objects.filter(
             Prefix=delete_path
         )
 
@@ -137,12 +174,12 @@ class S3(models.Model):
 
     def move_to_storage_service(self, src_path, dest_path, dest_space):
         self._ensure_bucket_exists()
-        bucket = self.resource.Bucket(self._bucket_name())
+        bucket = self.s3_resource.Bucket(self.bucket_name)
 
         # strip leading slash on src_path
         src_path = src_path.lstrip("/")
 
-        objects = self.resource.Bucket(self._bucket_name()).objects.filter(
+        objects = self.s3_resource.Bucket(self.bucket_name).objects.filter(
             Prefix=src_path
         )
 
@@ -154,7 +191,7 @@ class S3(models.Model):
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
         self._ensure_bucket_exists()
-        bucket = self.resource.Bucket(self._bucket_name())
+        bucket = self.s3_resource.Bucket(self.bucket_name)
 
         if os.path.isdir(src_path):
             # ensure trailing slash on both paths

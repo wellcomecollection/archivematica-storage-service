@@ -13,6 +13,7 @@ from wellcome_storage_service import StorageServiceClient
 from . import StorageException
 from . import Package
 from .location import Location
+from .s3 import S3SpaceModelMixin
 
 
 TOKEN_HELP_TEXT = _('URL of the OAuth token endpoint, e.g. https://auth.wellcomecollection.org/oauth2/token')
@@ -47,7 +48,7 @@ def handle_ingest(ingest, package):
     #    package.save()
 
 
-class WellcomeStorageService(models.Model):
+class WellcomeStorageService(S3SpaceModelMixin):
     space = models.OneToOneField('Space', to_field='uuid')
     token_url = models.URLField(max_length=256, help_text=TOKEN_HELP_TEXT)
     api_root_url = models.URLField(max_length=256, help_text=API_HELP_TEXT)
@@ -56,73 +57,9 @@ class WellcomeStorageService(models.Model):
     app_client_id = models.CharField(max_length=300, blank=True, null=True)
     app_client_secret = models.CharField(max_length=300, blank=True, null=True)
 
-    # AWS config
-    aws_access_key_id = models.CharField(
-        max_length=64,
-        blank=True,
-        verbose_name=_('AWS Access Key ID to authenticate'))
-
-    aws_secret_access_key = models.CharField(
-        max_length=256,
-        blank=True,
-        verbose_name=_('AWS Secret Access Key to authenticate with'))
-
-    aws_assumed_role = models.CharField(
-        max_length=256,
-        blank=True,
-        verbose_name=_('Assumed AWS IAM Role'),
-    )
-
-    s3_endpoint_url = models.CharField(max_length=2048,
-        verbose_name=_('S3 Endpoint URL'),
-        help_text=_('S3 Endpoint URL. Eg. https://s3.amazonaws.com'))
-    s3_region = models.CharField(max_length=64,
-        verbose_name=_('S3 Region'),
-        help_text=_('S3 Region in S3. Eg. us-east-2'))
-    s3_bucket = models.CharField(max_length=64,
-        verbose_name=_('S3 Bucket'),
-        help_text=_('S3 Bucket for temporary storage'))
-
     callback_host = models.URLField(max_length=256, help_text=CALLBACK_HELP_TEXT, blank=True)
     callback_username = models.CharField(max_length=150, blank=True)
     callback_api_key = models.CharField(max_length=256, blank=True)
-
-    def __init__(self, *args, **kwargs):
-        super(WellcomeStorageService, self).__init__(*args, **kwargs)
-        self._s3_resource = None
-
-    @property
-    def s3_resource(self):
-        if self._s3_resource is None:
-            if self.aws_access_key_id and self.aws_secret_access_key:
-                sts_client = boto3.client(
-                    service_name='sts',
-                    aws_access_key_id=self.aws_access_key_id,
-                    aws_secret_access_key=self.aws_secret_access_key,
-                )
-
-                assumed_role = sts_client.assume_role(
-                    RoleArn=self.aws_assumed_role,
-                    RoleSessionName='storage-session',
-                )
-                credentials = assumed_role['Credentials']
-
-                self._s3_resource = boto3.resource(
-                    service_name='s3',
-                    endpoint_url=self.s3_endpoint_url,
-                    region_name=self.s3_region,
-                    aws_access_key_id=credentials['AccessKeyId'],
-                    aws_secret_access_key=credentials['SecretAccessKey'],
-                    aws_session_token=credentials['SessionToken'],
-                )
-            else:
-                self._s3_resource = boto3.resource(
-                    service_name='s3',
-                    endpoint_url=self.s3_endpoint_url,
-                    region_name=self.s3_region,
-                )
-
-        return self._s3_resource
 
     def browse(self, path):
         LOGGER.debug('Browsing %s on Wellcome storage' % path)
@@ -175,7 +112,7 @@ class WellcomeStorageService(models.Model):
             location = wellcome.create_s3_ingest(
                 space_id='born-digital',
                 s3_key=s3_path,
-                s3_bucket=self.s3_bucket,
+                s3_bucket=self.bucket_name,
                 callback_url=callback_url,
             )
             LOGGER.info('Ingest_location: %s' % location)
@@ -215,9 +152,8 @@ class WellcomeStorageService(models.Model):
                 {'path': src_path})
 
 
-    class Meta:
+    class Meta(S3SpaceModelMixin.Meta):
         verbose_name = _("Wellcome Storage Service")
-        app_label = 'locations'
 
 
     ALLOWED_LOCATION_PURPOSE = [
