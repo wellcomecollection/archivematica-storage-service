@@ -1,6 +1,7 @@
 import os
 
 import boto3
+import pytest
 from django.test import TestCase
 from moto import mock_s3
 
@@ -11,6 +12,7 @@ THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 FIXTURES_DIR = os.path.abspath(os.path.join(THIS_DIR, "..", "fixtures"))
 
 
+@mock_s3
 class TestS3Storage(TestCase):
 
     fixtures = ["base.json", "s3.json"]
@@ -27,7 +29,21 @@ class TestS3Storage(TestCase):
 
         assert self.s3_object.bucket_name == "ae37f081-8baf-4d5d-9b1f-aebe367f1707"
 
-    @mock_s3
+    def test_ensure_bucket_exists_continues_if_exists(self):
+        client = boto3.client("s3", region_name='us-east-1')
+        client.create_bucket(Bucket='test-bucket')
+
+        self.s3_object._ensure_bucket_exists()
+
+        client.head_bucket(Bucket='test-bucket')
+
+    def test_ensure_bucket_exists_creates_bucket(self):
+        client = boto3.client("s3", region_name='us-east-1')
+
+        self.s3_object._ensure_bucket_exists()
+
+        client.head_bucket(Bucket='test-bucket')
+
     def test_browse(self):
         client = boto3.client("s3", region_name='us-east-1')
         client.create_bucket(Bucket='test-bucket')

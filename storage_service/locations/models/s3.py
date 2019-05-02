@@ -9,6 +9,7 @@ from django.db import models
 from django.utils.translation import ugettext_lazy as _
 
 # Third party dependencies, alphabetical
+import botocore
 import boto3
 import re
 
@@ -64,7 +65,15 @@ class S3SpaceModelMixin(models.Model):
         help_text=_('S3 Bucket Name'))
 
     def _ensure_bucket_exists(self):
-        self.s3_resource.create_bucket(Bucket=self.bucket_name)
+        client = self.s3_resource.meta.client
+        try:
+            client.head_bucket(Bucket=self.bucket_name)
+        except botocore.exceptions.ClientError as e:
+            # If a client error is thrown, then check that it was a 404 error.
+            # If it was a 404 error, then the bucket does not exist.
+            error_code = e.response['Error']['Code']
+            if error_code == '404':
+                client.create_bucket(Bucket=self.bucket_name)
 
     @property
     def bucket_name(self):
