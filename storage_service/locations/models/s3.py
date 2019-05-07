@@ -127,9 +127,7 @@ class S3(S3SpaceModelMixin):
     ]
 
     def browse(self, path):
-        # strip leading slash on path
-        LOGGER.debug('Browsing %s on S3 storage' % path)
-        LOGGER.debug('Bucket: %s' % self.bucket_name)
+        LOGGER.debug('Browsing s3://%s/%s on S3 storage', self.bucket_name, path)
         path = path.lstrip("/")
 
         # We need a trailing slash on non-empty prefixes because a path like:

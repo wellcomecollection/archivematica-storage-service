@@ -273,7 +273,7 @@ class Space(models.Model):
         try:
             return self.get_child_space().browse(path, *args, **kwargs)
         except AttributeError as e:
-            LOGGER.debug(e)
+            LOGGER.debug("AttributeError while browsing %s: %r", path, e)
             LOGGER.debug("Falling back to default browse local", exc_info=False)
             return self.browse_local(path)
 
