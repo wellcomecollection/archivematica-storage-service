@@ -70,6 +70,29 @@ class TestS3Storage(TestCase):
         with pytest.raises(models.StorageException):
             self.s3_object._ensure_bucket_exists()
 
+    def test_ensure_bucket_exists_head_fails(self):
+        client = boto3.client("s3", region_name="us-east-1")
+
+        self.s3_object.resource.meta.client.head_bucket = mock.Mock(
+            side_effect=botocore.exceptions.BotoCoreError
+        )
+
+        with pytest.raises(models.StorageException):
+            self.s3_object._ensure_bucket_exists()
+
+    def test_ensure_bucket_exists_creation_fails(self):
+        client = boto3.client("s3", region_name="us-east-1")
+
+        self.s3_object.resource.meta.client.head_bucket = mock.Mock(
+            side_effect=botocore.exceptions.BotoCoreError
+        )
+        self.s3_object.resource.meta.client.create_bucket = mock.Mock(
+            side_effect=botocore.exceptions.BotoCoreError
+        )
+
+        with pytest.raises(models.StorageException):
+            self.s3_object._ensure_bucket_exists()
+
     def test_browse(self):
         client = boto3.client("s3", region_name="us-east-1")
         client.create_bucket(Bucket="test-bucket")
