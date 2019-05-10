@@ -169,7 +169,7 @@ class S3(S3SpaceModelMixin):
                 if directory_name:
                     directories.add(directory_name)
                     entries.add(directory_name)
-            else:
+            elif relative_key != "":
                 entries.add(relative_key)
                 properties[relative_key] = {
                     "size": objectSummary.size,
