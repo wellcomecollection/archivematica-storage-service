@@ -44,6 +44,7 @@ class TestSpaceAPI(TestCase):
             "aws_access_key_id": "Cah4cae1",
             "aws_secret_access_key": "Thu6Ahqu",
             "s3_region": "us-west-2",
+            "s3_bucket": "",
         }
         response = self.client.post(
             "/api/v2/space/", data=json.dumps(data), content_type="application/json"
