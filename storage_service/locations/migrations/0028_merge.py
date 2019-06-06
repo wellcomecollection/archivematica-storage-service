@@ -8,7 +8,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('locations', '0027_wellcome_aws_fields'),
-        ('locations', '0021_alter_callback'),
+        ('locations', '0022_update_pipeline_help_text'),
     ]
 
     operations = [
