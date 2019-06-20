@@ -81,15 +81,14 @@ class WellcomeStorageService(S3SpaceModelMixin):
         """ Moves self.staging_path/src_path to dest_path. """
         LOGGER.debug('Moving %s to %s on Wellcome storage' % (src_path, dest_path))
 
+        s3_temporary_path = dest_path.lstrip('/')
         bucket = self.s3_resource.Bucket(self.s3_bucket)
 
         if os.path.isfile(src_path):
-            # strip leading slash on dest_path
-            s3_path = dest_path.lstrip('/')
 
             # Upload to s3
             with open(src_path, 'rb') as data:
-                bucket.upload_fileobj(data, s3_path)
+                bucket.upload_fileobj(data, s3_temporary_path)
 
             wellcome = StorageServiceClient(
                 api_url=self.api_root_url,
@@ -108,10 +107,15 @@ class WellcomeStorageService(S3SpaceModelMixin):
                     })
                 ))
 
+            # strip leading slash on dest_path
+            #space_id = os.path.basename(os.path.dirname(dest_path))
+            location = package.current_location
+            space_id = location.relative_path.strip(os.path.sep)
+
             LOGGER.info('Callback will be to %s' % callback_url)
             location = wellcome.create_s3_ingest(
-                space_id='born-digital',
-                s3_key=s3_path,
+                space_id=space_id,
+                s3_key=s3_temporary_path,
                 s3_bucket=self.bucket_name,
                 callback_url=callback_url,
             )
