@@ -29,7 +29,7 @@
         "uuid": "0af68d1f-456e-49b2-8791-00f46df65e5d",
         "access_protocol": "WELLCOME",
         "staging_path": "/var/archivematica/storage_service/",
-        "path": "/archivematica",
+        "path": "/",
         "size": null
     }
 },
@@ -42,7 +42,7 @@
         "space": "0af68d1f-456e-49b2-8791-00f46df65e5d",
         "enabled": true,
         "quota": null,
-        "relative_path": "aips",
+        "relative_path": "born-digital",
         "purpose": "AS",
         "uuid": "59987281-d8f6-4b46-b854-559981de49e8"
     }
