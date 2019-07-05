@@ -30,24 +30,11 @@ class TestWellcomeStorage(TestCase):
 
         self.wellcome_object.move_from_storage_service(
             os.path.join(FIXTURES_DIR, 'small_compressed_bag.zip'),
-            '/ingests/bag.zip',
+            '/born-digital/bag.zip',
             package=package
         )
 
-        assert self._s3.get_object(Bucket='ingest-bucket', Key='ingests/bag.zip')
-
-    @mock.patch('locations.models.wellcome.StorageServiceClient')
-    def test_move_from_ss_uploads_to_s3(self, mock_wellcome_client_class):
-        package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
-
-        self.wellcome_object.move_from_storage_service(
-            os.path.join(FIXTURES_DIR, 'small_compressed_bag.zip'),
-            '/ingests/bag.zip',
-            package=package
-        )
-
-        assert self._s3.get_object(Bucket='ingest-bucket', Key='ingests/bag.zip')
-
+        assert self._s3.get_object(Bucket='ingest-bucket', Key='born-digital/bag.zip')
 
     @mock.patch('locations.models.wellcome.StorageServiceClient')
     def test_move_from_ss_wellcome_client_calls(self, mock_wellcome_client_class):
@@ -55,7 +42,7 @@ class TestWellcomeStorage(TestCase):
 
         self.wellcome_object.move_from_storage_service(
             os.path.join(FIXTURES_DIR, 'small_compressed_bag.zip'),
-            '/ingests/bag.zip',
+            '/born-digital/bag.zip',
             package=package
         )
 
@@ -68,7 +55,7 @@ class TestWellcomeStorage(TestCase):
 
         mock_wellcome_client_class.return_value.create_s3_ingest.assert_called_with(
             space_id='born-digital',
-            s3_key='ingests/bag.zip',
+            s3_key='born-digital/bag.zip',
             s3_bucket=self.wellcome_object.s3_bucket,
             callback_url='https://test.localhost/api/v2/file/6465da4a-ea88-4300-ac56-9641125f1276/wellcome_callback/?username=username&api_key=api_key',
         )
@@ -88,7 +75,7 @@ class TestWellcomeStorage(TestCase):
 
         self.wellcome_object.move_from_storage_service(
             os.path.join(FIXTURES_DIR, 'small_compressed_bag.zip'),
-            '/ingests/bag.zip',
+            '/born-digital/bag.zip',
             package=package
         )
 
@@ -119,7 +106,7 @@ class TestWellcomeStorage(TestCase):
 
         self.wellcome_object.move_from_storage_service(
             os.path.join(FIXTURES_DIR, 'small_compressed_bag.zip'),
-            '/ingests/bag.zip',
+            '/born-digital/bag.zip',
             package=package
         )
 
@@ -142,6 +129,6 @@ class TestWellcomeStorage(TestCase):
         with pytest.raises(models.StorageException):
             self.wellcome_object.move_from_storage_service(
                 os.path.join(FIXTURES_DIR, 'small_compressed_bag.zip'),
-                '/ingests/bag.zip',
+                '/born-digital/bag.zip',
                 package=package
             )
