@@ -170,8 +170,7 @@ class WellcomeStorageService(models.Model):
                     })
                 ))
 
-            # strip leading slash on dest_path
-            #space_id = os.path.basename(os.path.dirname(dest_path))
+            # Use the relative_path as the storage service space ID
             location = package.current_location
             space_id = location.relative_path.strip(os.path.sep)
 
@@ -181,6 +180,8 @@ class WellcomeStorageService(models.Model):
                 s3_key=s3_temporary_path,
                 s3_bucket=self.s3_bucket,
                 callback_url=callback_url,
+                external_identifier=package.uuid,
+                ingest_type="create",
             )
             LOGGER.info('Ingest_location: %s' % location)
 
