@@ -5,7 +5,6 @@
 #    pip-compile --output-file=test.txt test.in
 #
 agentarchives==0.4.0
-appnope==0.1.0            # via ipython
 asn1crypto==0.24.0
 atomicwrites==1.3.0       # via pytest
 attrs==19.1.0             # via pytest
@@ -72,7 +71,7 @@ git+https://github.com/seatme/django-longer-username.git@seatme#egg=longeruserna
 lxml==3.7.3
 markupsafe==1.1.1         # via jinja2
 metsrw==0.3.8
-mock==3.0.5               # via pytest-mock, vcrpy
+mock==3.0.5               # via moto, pytest-mock, responses, vcrpy
 monotonic==1.5
 more-itertools==5.0.0     # via pytest
 moto==1.3.8
@@ -87,7 +86,7 @@ oslo.config==6.9.0
 oslo.i18n==3.23.1
 oslo.serialization==2.29.1
 oslo.utils==3.41.0
-pathlib2==2.3.3           # via ipython, pickleshare, pytest, pytest-django
+pathlib2==2.3.3           # via cfn-lint, ipython, pickleshare, pytest, pytest-django
 pbr==5.2.0
 pexpect==4.7.0            # via ipython
 pickleshare==0.7.5        # via ipython
@@ -118,8 +117,8 @@ pytz==2019.1
 pyyaml==5.1
 requests-oauthlib==1.2.0
 requests==2.21.0
-rfc3986==1.3.2
 responses==0.10.6         # via moto
+rfc3986==1.3.2
 rsa==4.0                  # via python-jose
 s3transfer==0.2.0
 scandir==1.10.0           # via pathlib2
@@ -135,7 +134,7 @@ vcrpy==2.0.1
 virtualenv==16.6.0        # via tox
 wcwidth==0.1.7            # via prompt-toolkit
 websocket-client==0.56.0  # via docker
-wellcome-storage-service==1.0.0
+wellcome-storage-service==1.1.0
 werkzeug==0.15.2          # via moto
 whitenoise==3.3.0
 wrapt==1.11.1
