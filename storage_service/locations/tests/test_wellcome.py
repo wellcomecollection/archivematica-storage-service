@@ -58,6 +58,8 @@ class TestWellcomeStorage(TestCase):
             s3_key='born-digital/bag.zip',
             s3_bucket=self.wellcome_object.s3_bucket,
             callback_url='https://test.localhost/api/v2/file/6465da4a-ea88-4300-ac56-9641125f1276/wellcome_callback/?username=username&api_key=api_key',
+            external_identifier=package.uuid,
+            ingest_type='create',
         )
 
     @mock.patch('time.sleep')
