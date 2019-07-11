@@ -29,13 +29,13 @@ def handle_ingest(ingest, package):
     """
     status = ingest['status']['id']
     if status == 'succeeded':
-        bag_id = ingest['bag']['id']
+        external_id = ingest['bag']['info']['externalIdentifier']
         package.status = Package.UPLOADED
-        package.misc_attributes['bag_id'] = bag_id
         package.misc_attributes['ingest_id'] = ingest['id']
-        package.current_path = bag_id
+        package.current_path = external_id
         package.save()
-        LOGGER.info('Bag ID: %s' % bag_id)
+        LOGGER.info('Ingest ID: %s' % external_id)
+        LOGGER.info('External ID: %s' % external_id)
     elif status =='failed':
         LOGGER.error('Ingest failed')
         package.status = Package.FAIL
