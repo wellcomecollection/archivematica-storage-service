@@ -102,7 +102,9 @@ class TestWellcomeStorage(TestCase):
                 'id': 'succeeded',
             },
             'bag': {
-                'id': 'bag-id',
+                'info': {
+                    'externalIdentifier': 'external-id',
+                }
             },
         }
 
@@ -114,6 +116,8 @@ class TestWellcomeStorage(TestCase):
 
         package.refresh_from_db()
         assert package.status == models.Package.UPLOADED
+        assert package.current_path == 'external-id'
+        assert package.misc_attributes['ingest_id'] == 'ingest-id'
 
     @mock.patch('time.sleep')
     @mock.patch('locations.models.wellcome.StorageServiceClient')
