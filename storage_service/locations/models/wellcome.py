@@ -69,13 +69,41 @@ class WellcomeStorageService(S3SpaceModelMixin):
             'properties': {},
         }
 
+    @property
+    def wellcome_client(self):
+        return StorageServiceClient(
+            api_url=self.api_root_url,
+            token_url=self.token_url,
+            client_id=self.app_client_id,
+            client_secret=self.app_client_secret,
+        )
+
     def delete_path(self, delete_path):
         LOGGER.debug('Deleting %s from Wellcome storage' % delete_path)
 
     def move_to_storage_service(self, src_path, dest_path, dest_space):
         """ Moves src_path to dest_space.staging_path/dest_path. """
-        LOGGER.debug('Fetching %s from %s (%s) on Wellcome storage' % (
+        LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)' % (
             src_path, dest_path, dest_space))
+
+        src_path = src_path.lstrip('/')
+        space_id, source_id = src_path.split('/')
+
+        bag = self.wellcome_client.get_bag(space_id, source_id)
+        for loc in bag['locations']:
+            if loc['provider']['id'] == 'aws-s3-ia':
+                print("s3://{bucket}/{path}".format(**loc))
+                bucket = self.s3_resource.Bucket(loc['bucket'])
+
+                # The bag is stored unzipped (i.e. as a directory tree).
+                # Download all objects in the source directory
+                objects = bucket.objects.filter(Prefix=src_path)
+                for objectSummary in objects:
+                    dest_file = objectSummary.key.replace(src_path, dest_path, 1)
+                    self.space.create_local_directory(dest_file)
+
+                    bucket.download_file(objectSummary.key, dest_file)
+                break
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
         """ Moves self.staging_path/src_path to dest_path. """
@@ -90,12 +118,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
             with open(src_path, 'rb') as data:
                 bucket.upload_fileobj(data, s3_temporary_path)
 
-            wellcome = StorageServiceClient(
-                api_url=self.api_root_url,
-                token_url=self.token_url,
-                client_id=self.app_client_id,
-                client_secret=self.app_client_secret,
-            )
+            wellcome = self.wellcome_client
 
             callback_url = urljoin(
                 self.callback_host,
