@@ -149,20 +149,20 @@ class WellcomeStorageService(models.Model):
         LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)' % (
             src_path, dest_path, dest_space))
 
-        src_path = src_path.lstrip('/')
-        space_id, source_id = src_path.split('/')
+        space_id, source_id = src_path.lstrip('/').split('/')
 
         bag = self.wellcome_client.get_bag(space_id, source_id)
         for loc in bag['locations']:
             if loc['provider']['id'] == 'aws-s3-ia':
-                print("s3://{bucket}/{path}".format(**loc))
+                LOGGER.debug("Fetching files from s3://%s%s", loc['bucket'], loc['path'])
                 bucket = self.s3_resource.Bucket(loc['bucket'])
 
                 # The bag is stored unzipped (i.e. as a directory tree).
                 # Download all objects in the source directory
-                objects = bucket.objects.filter(Prefix=src_path)
+                s3_prefix = loc['path'].lstrip('/')
+                objects = bucket.objects.filter(Prefix=s3_prefix)
                 for objectSummary in objects:
-                    dest_file = objectSummary.key.replace(src_path, dest_path, 1)
+                    dest_file = objectSummary.key.replace(s3_prefix, dest_path, 1)
                     self.space.create_local_directory(dest_file)
 
                     bucket.download_file(objectSummary.key, dest_file)
