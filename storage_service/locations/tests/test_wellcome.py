@@ -1,4 +1,7 @@
 import os
+import shutil
+import tempfile
+from StringIO import StringIO
 
 import boto3
 import mock
@@ -14,7 +17,7 @@ FIXTURES_DIR = os.path.abspath(os.path.join(THIS_DIR, '..', 'fixtures'))
 
 
 @mock_s3
-class TestWellcomeStorage(TestCase):
+class TestWellcomeMoveFromStorageService(TestCase):
 
     fixtures = ['base.json', 'wellcome.json']
 
@@ -25,7 +28,7 @@ class TestWellcomeStorage(TestCase):
         self._s3.create_bucket(Bucket=self.wellcome_object.s3_bucket)
 
     @mock.patch('locations.models.wellcome.StorageServiceClient')
-    def test_move_from_ss_uploads_to_s3(self, mock_wellcome_client_class):
+    def test_uploads_bag_to_s3_bucket(self, mock_wellcome_client_class):
         package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
 
         self.wellcome_object.move_from_storage_service(
@@ -37,7 +40,7 @@ class TestWellcomeStorage(TestCase):
         assert self._s3.get_object(Bucket='ingest-bucket', Key='born-digital/bag.zip')
 
     @mock.patch('locations.models.wellcome.StorageServiceClient')
-    def test_move_from_ss_wellcome_client_calls(self, mock_wellcome_client_class):
+    def test_calls_wellcome_ss_client(self, mock_wellcome_client_class):
         package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
 
         self.wellcome_object.move_from_storage_service(
@@ -64,7 +67,7 @@ class TestWellcomeStorage(TestCase):
 
     @mock.patch('time.sleep')
     @mock.patch('locations.models.wellcome.StorageServiceClient')
-    def test_move_from_ss_waits_for_callback(self, mock_wellcome_client_class, mock_sleep):
+    def test_waits_for_callback(self, mock_wellcome_client_class, mock_sleep):
         package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
         package.status = models.Package.STAGING
         package.save()
@@ -85,7 +88,7 @@ class TestWellcomeStorage(TestCase):
 
     @mock.patch('time.sleep')
     @mock.patch('locations.models.wellcome.StorageServiceClient')
-    def test_move_from_ss_gives_up_and_tries_fetching_ingest(self, mock_wellcome_client_class, mock_sleep):
+    def test_tries_fetching_ingest_if_no_callback(self, mock_wellcome_client_class, mock_sleep):
         package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
         package.status = models.Package.STAGING
         package.save()
@@ -138,3 +141,52 @@ class TestWellcomeStorage(TestCase):
                 '/born-digital/bag.zip',
                 package=package
             )
+
+
+class TestWellcomeMoveToStorageService(TestCase):
+    fixtures = ['base.json', 'wellcome.json']
+
+    def setUp(self):
+        self.wellcome_object = models.WellcomeStorageService.objects.get(id=1)
+
+        self._s3 = boto3.client("s3", region_name='us-east-1')
+        self.tmp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir)
+
+    @mock.patch('locations.models.wellcome.StorageServiceClient')
+    def test_gets_bag_info_from_wellcome(self, mock_wellcome_client_class):
+        src_path = "/born-digital/bag-id"
+        mock_wellcome = mock_wellcome_client_class.return_value
+
+        self.wellcome_object.move_to_storage_service(src_path, '/dest/path', 'space-uuid')
+
+        mock_wellcome.get_bag.assert_called_with('born-digital', 'bag-id', )
+
+    @mock_s3
+    @mock.patch('locations.models.wellcome.StorageServiceClient')
+    def test_copies_files_from_ia_provider(self, mock_wellcome_client_class):
+        self._s3.create_bucket(Bucket='ia-bucket')
+        self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/subdir/file1')
+
+        mock_wellcome = mock_wellcome_client_class.return_value
+        mock_wellcome.get_bag.return_value = {
+            'locations': [
+                {
+                    'bucket': 'ia-bucket',
+                    'path': '/bucket-subdir/bag-id',
+                    'provider': {
+                        'id': 'aws-s3-ia',
+                    }
+                }
+            ]
+        }
+
+        self.wellcome_object.move_to_storage_service(
+            '/name-of-space/bag-id',
+            os.path.join(self.tmp_dir, 'bag-id'),
+            'space-uuid'
+        )
+
+        assert os.path.exists(os.path.join(self.tmp_dir, 'bag-id/subdir/file1'))
