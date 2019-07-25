@@ -34,8 +34,8 @@ def handle_ingest(ingest, package):
         package.misc_attributes['ingest_id'] = ingest['id']
         package.current_path = external_id
         package.save()
-        LOGGER.info('Ingest ID: %s' % external_id)
-        LOGGER.info('External ID: %s' % external_id)
+        LOGGER.info('Ingest ID: %s', external_id)
+        LOGGER.info('External ID: %s', external_id)
     elif status =='failed':
         LOGGER.error('Ingest failed')
         package.status = Package.FAIL
@@ -62,7 +62,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
     callback_api_key = models.CharField(max_length=256, blank=True)
 
     def browse(self, path):
-        LOGGER.debug('Browsing %s on Wellcome storage' % path)
+        LOGGER.debug('Browsing %s on Wellcome storage', path)
         return {
             'directories': set(),
             'entries': set(),
@@ -79,19 +79,19 @@ class WellcomeStorageService(S3SpaceModelMixin):
         )
 
     def delete_path(self, delete_path):
-        LOGGER.debug('Deleting %s from Wellcome storage' % delete_path)
+        LOGGER.debug('Deleting %s from Wellcome storage', delete_path)
 
     def move_to_storage_service(self, src_path, dest_path, dest_space):
         """ Moves src_path to dest_space.staging_path/dest_path. """
-        LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)' % (
-            src_path, dest_path, dest_space))
+        LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)',
+            src_path, dest_path, dest_space)
 
         space_id, source_id = src_path.lstrip('/').split('/')
 
         bag = self.wellcome_client.get_bag(space_id, source_id)
         for loc in bag['locations']:
             if loc['provider']['id'] == 'aws-s3-ia':
-                LOGGER.debug("Fetching files from s3://%s%s", loc['bucket'], loc['path'])
+                LOGGER.debug("Fetching files from s3://%s/%s", loc['bucket'], loc['path'])
                 bucket = self.s3_resource.Bucket(loc['bucket'])
 
                 # The bag is stored unzipped (i.e. as a directory tree).
@@ -107,7 +107,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
         """ Moves self.staging_path/src_path to dest_path. """
-        LOGGER.debug('Moving %s to %s on Wellcome storage' % (src_path, dest_path))
+        LOGGER.debug('Moving %s to %s on Wellcome storage', src_path, dest_path)
 
         s3_temporary_path = dest_path.lstrip('/')
         bucket = self.s3_resource.Bucket(self.s3_bucket)
@@ -134,7 +134,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
             location = package.current_location
             space_id = location.relative_path.strip(os.path.sep)
 
-            LOGGER.info('Callback will be to %s' % callback_url)
+            LOGGER.info('Callback will be to %s', callback_url)
             location = wellcome.create_s3_ingest(
                 space_id=space_id,
                 s3_key=s3_temporary_path,
@@ -143,7 +143,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
                 external_identifier=package.uuid,
                 ingest_type="create",
             )
-            LOGGER.info('Ingest_location: %s' % location)
+            LOGGER.info('Ingest_location: %s', location)
 
             while package.status == Package.STAGING:
                 # Wait for callback to have been called
