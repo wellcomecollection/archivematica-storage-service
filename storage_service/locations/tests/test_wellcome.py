@@ -160,7 +160,7 @@ class TestWellcomeMoveToStorageService(TestCase):
     @mock.patch('locations.models.wellcome.StorageServiceClient')
     def test_copies_files_from_ia_provider(self, mock_wellcome_client_class):
         self._s3.create_bucket(Bucket='ia-bucket')
-        self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/subdir/file1')
+        self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v1/subdir/file1')
 
         mock_wellcome = mock_wellcome_client_class.return_value
         mock_wellcome.get_bag.return_value = {
@@ -174,13 +174,13 @@ class TestWellcomeMoveToStorageService(TestCase):
         }
 
         self.wellcome_object.move_to_storage_service(
-            '/name-of-space/bag-id',
-            os.path.join(self.tmp_dir, 'bag-id'),
+            '/name-of-space/name-bag-id',
+            os.path.join(self.tmp_dir, 'name-bag-id'),
             'space-uuid'
         )
 
-        mock_wellcome.get_bag.assert_called_with('name-of-space', 'bag-id', )
-        assert os.path.exists(os.path.join(self.tmp_dir, 'bag-id/subdir/file1'))
+        mock_wellcome.get_bag.assert_called_with('name-of-space', 'bag-id', version='v1')
+        assert os.path.exists(os.path.join(self.tmp_dir, 'name-bag-id/subdir/file1'))
 
     @mock_s3
     @mock.patch('locations.models.wellcome.StorageServiceClient')
