@@ -31,9 +31,8 @@ def handle_ingest(ingest, package):
         external_id = ingest['bag']['info']['externalIdentifier']
         package.status = Package.UPLOADED
         package.misc_attributes['ingest_id'] = ingest['id']
-        package.current_path = external_id
         package.save()
-        LOGGER.info('Ingest ID: %s', external_id)
+        LOGGER.info('Ingest ID: %s', ingest['id'])
         LOGGER.info('External ID: %s', external_id)
     elif status =='failed':
         LOGGER.error('Ingest failed')
@@ -149,16 +148,18 @@ class WellcomeStorageService(models.Model):
         LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)',
             src_path, dest_path, dest_space)
 
-        space_id, source_id = src_path.lstrip('/').split('/')
+        space_id, source = src_path.lstrip('/').split('/')
+        name, source_id = source.split('-', 1)
+        version = "v1"
 
-        bag = self.wellcome_client.get_bag(space_id, source_id)
+        bag = self.wellcome_client.get_bag(space_id, source_id, version=version)
         loc = bag['location']
         LOGGER.debug("Fetching files from s3://%s/%s", loc['bucket'], loc['path'])
         bucket = self.s3_resource.Bucket(loc['bucket'])
 
         # The bag is stored unzipped (i.e. as a directory tree).
         # Download all objects in the source directory
-        s3_prefix = loc['path'].lstrip('/')
+        s3_prefix = '%s/%s' % (loc['path'].lstrip('/'), version)
         objects = bucket.objects.filter(Prefix=s3_prefix)
         for objectSummary in objects:
             dest_file = objectSummary.key.replace(s3_prefix, dest_path, 1)
@@ -195,6 +196,10 @@ class WellcomeStorageService(models.Model):
             # Use the relative_path as the storage service space ID
             location = package.current_location
             space_id = location.relative_path.strip(os.path.sep)
+
+            # Store name of package so it can be used on reingest
+            package.current_path = os.path.basename(package.current_path).split('.', 1)[0]
+            package.save()
 
             LOGGER.info('Callback will be to %s', callback_url)
             location = wellcome.create_s3_ingest(
