@@ -90,6 +90,7 @@ class TestWellcomeMoveFromStorageService(TestCase):
     @mock.patch('locations.models.wellcome.StorageServiceClient')
     def test_tries_fetching_ingest_if_no_callback(self, mock_wellcome_client_class, mock_sleep):
         package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
+        package.current_path = "locations/fixtures/bag-6465da4a-ea88-4300-ac56-9641125f1276.zip"
         package.status = models.Package.STAGING
         package.save()
 
@@ -119,7 +120,7 @@ class TestWellcomeMoveFromStorageService(TestCase):
 
         package.refresh_from_db()
         assert package.status == models.Package.UPLOADED
-        assert package.current_path == 'external-id'
+        assert package.current_path == 'bag-6465da4a-ea88-4300-ac56-9641125f1276'
         assert package.misc_attributes['ingest_id'] == 'ingest-id'
 
     @mock.patch('time.sleep')
