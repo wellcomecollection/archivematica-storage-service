@@ -2302,14 +2302,15 @@ class Package(models.Model):
                 compression_algorithm, __, archive_tool = _get_compression_details_from_premis_events(
                     premis_events, self.uuid
                 )
+                compression_options = {
+                    "bzip2": utils.COMPRESSION_7Z_BZIP,
+                    "lzma": utils.COMPRESSION_7Z_LZMA,
+                    "pbzip2": utils.COMPRESSION_TAR_BZIP2,
+                    "gzip": utils.COMPRESSION_TAR_GZIP,
+                    "copy": utils.COMPRESSION_7Z_COPY,
+                }
                 try:
-                    compression = {
-                        "bzip2": utils.COMPRESSION_7Z_BZIP,
-                        "lzma": utils.COMPRESSION_7Z_LZMA,
-                        "pbzip2": utils.COMPRESSION_TAR_BZIP2,
-                        "tar.gzip": utils.COMPRESSION_TAR_GZIP,
-                        "copy": utils.COMPRESSION_7Z_COPY,
-                    }[compression_algorithm]
+                    compression = compression_options[compression_algorithm]
                     LOGGER.info(
                         'Extracted compression "{}" from AM-passed'
                         " PREMIS events".format(compression)
@@ -2320,7 +2321,7 @@ class Package(models.Model):
                         ' "{}"; does not match any of the following recognized'
                         " options: {}".format(
                             compression_algorithm,
-                            ", ".join(utils.COMPRESSION_ALGORITHMS),
+                            ", ".join(compression_options)
                         )
                     )
                     LOGGER.error(msg)
