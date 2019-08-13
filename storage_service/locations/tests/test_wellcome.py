@@ -181,3 +181,27 @@ class TestWellcomeMoveToStorageService(TestCase):
 
         mock_wellcome.get_bag.assert_called_with('name-of-space', 'bag-id', )
         assert os.path.exists(os.path.join(self.tmp_dir, 'bag-id/subdir/file1'))
+
+    @mock_s3
+    @mock.patch('locations.models.wellcome.StorageServiceClient')
+    def test_raises_error_if_no_ia_provider(self, mock_wellcome_client_class):
+
+        mock_wellcome = mock_wellcome_client_class.return_value
+        mock_wellcome.get_bag.return_value = {
+            'locations': [
+                {
+                    'bucket': 'ia-bucket',
+                    'path': '/bucket-subdir/bag-id',
+                    'provider': {
+                        'id': 'some-other-provider',
+                    }
+                }
+            ]
+        }
+
+        with pytest.raises(models.StorageException):
+            self.wellcome_object.move_to_storage_service(
+                '/name-of-space/bag-id',
+                os.path.join(self.tmp_dir, 'bag-id'),
+                'space-uuid'
+            )
