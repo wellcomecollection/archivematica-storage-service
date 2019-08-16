@@ -102,6 +102,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
                     dest_file = objectSummary.key.replace(s3_prefix, dest_path, 1)
                     self.space.create_local_directory(dest_file)
 
+                    LOGGER.debug("Downloading %s", objectSummary.key)
                     bucket.download_file(objectSummary.key, dest_file)
                 break
 
