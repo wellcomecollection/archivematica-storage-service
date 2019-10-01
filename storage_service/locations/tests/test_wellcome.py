@@ -155,15 +155,6 @@ class TestWellcomeMoveToStorageService(TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
 
-    @mock.patch('locations.models.wellcome.StorageServiceClient')
-    def test_gets_bag_info_from_wellcome(self, mock_wellcome_client_class):
-        src_path = "/born-digital/bag-id"
-        mock_wellcome = mock_wellcome_client_class.return_value
-
-        self.wellcome_object.move_to_storage_service(src_path, '/dest/path', 'space-uuid')
-
-        mock_wellcome.get_bag.assert_called_with('born-digital', 'bag-id', )
-
     @mock_s3
     @mock.patch('locations.models.wellcome.StorageServiceClient')
     def test_copies_files_from_ia_provider(self, mock_wellcome_client_class):
@@ -172,15 +163,13 @@ class TestWellcomeMoveToStorageService(TestCase):
 
         mock_wellcome = mock_wellcome_client_class.return_value
         mock_wellcome.get_bag.return_value = {
-            'locations': [
-                {
-                    'bucket': 'ia-bucket',
-                    'path': '/bucket-subdir/bag-id',
-                    'provider': {
-                        'id': 'aws-s3-ia',
-                    }
+            'location': {
+                'bucket': 'ia-bucket',
+                'path': '/bucket-subdir/bag-id',
+                'provider': {
+                    'id': 'aws-s3-ia',
                 }
-            ]
+            }
         }
 
         self.wellcome_object.move_to_storage_service(
@@ -189,4 +178,5 @@ class TestWellcomeMoveToStorageService(TestCase):
             'space-uuid'
         )
 
+        mock_wellcome.get_bag.assert_called_with('name-of-space', 'bag-id', )
         assert os.path.exists(os.path.join(self.tmp_dir, 'bag-id/subdir/file1'))
