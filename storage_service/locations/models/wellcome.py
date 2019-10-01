@@ -89,22 +89,20 @@ class WellcomeStorageService(S3SpaceModelMixin):
         space_id, source_id = src_path.lstrip('/').split('/')
 
         bag = self.wellcome_client.get_bag(space_id, source_id)
-        for loc in bag['locations']:
-            if loc['provider']['id'] == 'aws-s3-ia':
-                LOGGER.debug("Fetching files from s3://%s/%s", loc['bucket'], loc['path'])
-                bucket = self.s3_resource.Bucket(loc['bucket'])
+        loc = bag['location']
+        LOGGER.debug("Fetching files from s3://%s/%s", loc['bucket'], loc['path'])
+        bucket = self.s3_resource.Bucket(loc['bucket'])
 
-                # The bag is stored unzipped (i.e. as a directory tree).
-                # Download all objects in the source directory
-                s3_prefix = loc['path'].lstrip('/')
-                objects = bucket.objects.filter(Prefix=s3_prefix)
-                for objectSummary in objects:
-                    dest_file = objectSummary.key.replace(s3_prefix, dest_path, 1)
-                    self.space.create_local_directory(dest_file)
+        # The bag is stored unzipped (i.e. as a directory tree).
+        # Download all objects in the source directory
+        s3_prefix = loc['path'].lstrip('/')
+        objects = bucket.objects.filter(Prefix=s3_prefix)
+        for objectSummary in objects:
+            dest_file = objectSummary.key.replace(s3_prefix, dest_path, 1)
+            self.space.create_local_directory(dest_file)
 
-                    LOGGER.debug("Downloading %s", objectSummary.key)
-                    bucket.download_file(objectSummary.key, dest_file)
-                break
+            LOGGER.debug("Downloading %s", objectSummary.key)
+            bucket.download_file(objectSummary.key, dest_file)
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
         """ Moves self.staging_path/src_path to dest_path. """
