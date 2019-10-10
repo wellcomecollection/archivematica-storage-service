@@ -318,8 +318,9 @@ def get_compression(pointer_path):
         return COMPRESSION_TAR_GZIP
     else:
         LOGGER.warning(
-            "Unable to determine reingested file format,"
-            " defaulting recompression algorithm to bzip2."
+            "Unable to determine reingested file format %s,"
+            " defaulting recompression algorithm to bzip2.",
+            puid
         )
         return COMPRESSION_7Z_BZIP
 
