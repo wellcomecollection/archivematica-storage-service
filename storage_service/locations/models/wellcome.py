@@ -86,7 +86,9 @@ class WellcomeStorageService(S3SpaceModelMixin):
             src_path, dest_path, dest_space)
 
         space_id, source = src_path.lstrip('/').split('/')
-        name, source_id = source.split('-', 1)
+        filename = source
+        filename, ext = source.split('.', 1)
+        name, source_id = filename.split('-', 1)
         version = "v1"
 
         bag = self.wellcome_client.get_bag(space_id, source_id, version=version)
@@ -135,8 +137,11 @@ class WellcomeStorageService(S3SpaceModelMixin):
             space_id = location.relative_path.strip(os.path.sep)
 
             # Store name of package so it can be used on reingest
-            package.current_path = os.path.basename(package.current_path).split('.', 1)[0]
+            LOGGER.debug('Path was %s', package.current_path)
+            package.current_path = os.path.basename(package.current_path)
+            package.status = Package.STAGING
             package.save()
+            LOGGER.debug('Path is now %s', package.current_path)
 
             LOGGER.info('Callback will be to %s', callback_url)
             location = wellcome.create_s3_ingest(
