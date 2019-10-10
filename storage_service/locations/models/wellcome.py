@@ -3,6 +3,9 @@ import logging
 import os
 import boto3
 import requests
+import shutil
+import subprocess
+import tempfile
 import time
 from django.db import models
 from django.core.urlresolvers import reverse
@@ -96,16 +99,26 @@ class WellcomeStorageService(S3SpaceModelMixin):
         LOGGER.debug("Fetching files from s3://%s/%s", loc['bucket'], loc['path'])
         bucket = self.s3_resource.Bucket(loc['bucket'])
 
+        tmpdir = tempfile.mkdtemp()
+        tmp_aip_dir = os.path.join(tmpdir, filename)
         # The bag is stored unzipped (i.e. as a directory tree).
-        # Download all objects in the source directory
+        # Download all objects in the source directory to a temporary space
         s3_prefix = '%s/%s' % (loc['path'].lstrip('/'), version)
         objects = bucket.objects.filter(Prefix=s3_prefix)
         for objectSummary in objects:
-            dest_file = objectSummary.key.replace(s3_prefix, dest_path, 1)
+            dest_file = objectSummary.key.replace(s3_prefix, tmp_aip_dir, 1)
             self.space.create_local_directory(dest_file)
 
             LOGGER.debug("Downloading %s", objectSummary.key)
             bucket.download_file(objectSummary.key, dest_file)
+
+        # Now compress the temporary dir contents, writing to the path
+        # Archivematica expects.
+        cmd = ["/bin/tar", "cz", "-C", tmpdir, "-f", dest_path, filename]
+        subprocess.call(cmd)
+
+        shutil.rmtree(tmpdir)
+
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
         """ Moves self.staging_path/src_path to dest_path. """
