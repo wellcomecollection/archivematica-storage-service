@@ -31,12 +31,18 @@ def handle_ingest(ingest, package):
     """
     status = ingest['status']['id']
     if status == 'succeeded':
-        external_id = ingest['bag']['info']['externalIdentifier']
+        bag_info = ingest['bag']['info']
+        external_id = bag_info['externalIdentifier']
+        bag_version = bag_info['version']
         package.status = Package.UPLOADED
+        package.current_path = os.path.basename(package.current_path)
+        LOGGER.debug('Saving path as %s', package.current_path)
         package.misc_attributes['ingest_id'] = ingest['id']
+        package.misc_attributes['bag_version'] = bag_version
         package.save()
         LOGGER.info('Ingest ID: %s', ingest['id'])
         LOGGER.info('External ID: %s', external_id)
+        LOGGER.info('Bag version: %s', bag_version)
     elif status =='failed':
         LOGGER.error('Ingest failed')
         package.status = Package.FAIL
@@ -213,11 +219,9 @@ class WellcomeStorageService(models.Model):
             space_id = location.relative_path.strip(os.path.sep)
 
             # Store name of package so it can be used on reingest
-            LOGGER.debug('Path was %s', package.current_path)
-            package.current_path = os.path.basename(package.current_path)
+            LOGGER.debug('Path: %s', package.current_path)
             package.status = Package.STAGING
             package.save()
-            LOGGER.debug('Path is now %s', package.current_path)
 
             LOGGER.info('Callback will be to %s', callback_url)
             location = wellcome.create_s3_ingest(
@@ -230,6 +234,7 @@ class WellcomeStorageService(models.Model):
             )
             LOGGER.info('Ingest_location: %s', location)
 
+            print('Package status %s' % package.status)
             while package.status == Package.STAGING:
                 # Wait for callback to have been called
                 for i in range(6):

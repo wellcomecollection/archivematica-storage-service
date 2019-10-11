@@ -109,6 +109,7 @@ class TestWellcomeMoveFromStorageService(TestCase):
             'bag': {
                 'info': {
                     'externalIdentifier': 'external-id',
+                    'version': 'v3',
                 }
             },
         }
@@ -123,6 +124,7 @@ class TestWellcomeMoveFromStorageService(TestCase):
         assert package.status == models.Package.UPLOADED
         assert package.current_path == 'bag-6465da4a-ea88-4300-ac56-9641125f1276.zip'
         assert package.misc_attributes['ingest_id'] == 'ingest-id'
+        assert package.misc_attributes['bag_version'] == 'v3'
 
     @mock.patch('time.sleep')
     @mock.patch('locations.models.wellcome.StorageServiceClient')
