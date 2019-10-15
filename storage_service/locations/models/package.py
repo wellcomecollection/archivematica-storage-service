@@ -325,6 +325,7 @@ class Package(models.Model):
             ),
             destination_path=self.current_path,
             destination_space=ss_internal.space,
+            package=self,
         )
 
         relative_path = int_path.replace(ss_internal.space.path, "", 1).lstrip("/")
@@ -457,6 +458,7 @@ class Package(models.Model):
                 source_path=source_path,
                 destination_path=destination_path,
                 destination_space=destination_space,
+                package=None,
             )
 
             origin_space.post_move_to_storage_service()
@@ -514,6 +516,7 @@ class Package(models.Model):
             source_path=source_path,
             destination_path=destination_path,
             destination_space=destination_space,
+            package=self,
         )
         origin_space.post_move_to_storage_service()
 
@@ -537,6 +540,7 @@ class Package(models.Model):
             source_path=source_path,
             destination_path=destination_path,
             destination_space=destination_space,
+            package=self,
         )
         origin_space.post_move_to_storage_service()
 
@@ -611,6 +615,7 @@ class Package(models.Model):
             ),
             destination_path=replica_package.current_path,
             destination_space=dest_space,
+            package=self,
         )
         replica_package.status = Package.STAGING
         replica_package.save()
@@ -932,6 +937,7 @@ class Package(models.Model):
                 ),
                 destination_path=self.current_path,  # This should include Location.path
                 destination_space=v.dest_space,
+                package=self,
             )
             # We have to manually construct the AIP's current path here;
             # ``self.get_local_path()`` won't work.
@@ -987,6 +993,7 @@ class Package(models.Model):
                     v.pointer_file_src,
                     self.pointer_file_path,
                     self.pointer_file_location.space,
+                    package=self,
                 )
                 self.pointer_file_location.space.move_from_storage_service(
                     self.pointer_file_path, v.pointer_file_dst, package=None
@@ -1808,6 +1815,7 @@ class Package(models.Model):
             ),
             destination_path=self.current_path,  # This should include Location.path
             destination_space=dest_space,
+            package=self,
         )
 
         try:
@@ -2153,6 +2161,7 @@ class Package(models.Model):
                 source_path=os.path.join(current_location.relative_path, path),
                 destination_path=path,
                 destination_space=currently_processing.space,
+                package=self,
             )
             currently_processing.space.move_from_storage_service(
                 source_path=path,
@@ -2307,7 +2316,7 @@ class Package(models.Model):
             )
             if os.path.isfile(reingest_pointer_src_full_path):
                 origin_space.move_to_storage_service(
-                    reingest_pointer_src, reingest_pointer_name, internal_space
+                    reingest_pointer_src, reingest_pointer_name, internal_space, package=None
                 )
                 internal_space.move_from_storage_service(
                     reingest_pointer_name, reingest_pointer_dst, package=None
@@ -2474,6 +2483,7 @@ class Package(models.Model):
             source_path=os.path.join(origin_location.relative_path, origin_path),
             destination_path=reingest_path,  # This should include Location.path
             destination_space=internal_space,
+            package=self,
         )
         internal_space.move_from_storage_service(
             source_path=reingest_path,  # This should include Location.path
@@ -2621,6 +2631,7 @@ class Package(models.Model):
             source_path=updated_aip_src_path,
             destination_path=dest_path,  # This should include Location.path
             destination_space=reingest_space,
+            package=self,
         )
         storage_effects = reingest_space.move_from_storage_service(
             source_path=dest_path,  # This should include Location.path

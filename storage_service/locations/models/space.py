@@ -80,7 +80,7 @@ def validate_space_path(path):
 #     def delete_path(self, delete_path):
 #         pass
 #
-#     def move_to_storage_service(self, src_path, dest_path, dest_space):
+#     def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
 #         """ Moves src_path to dest_space.staging_path/dest_path. """
 #         pass
 #

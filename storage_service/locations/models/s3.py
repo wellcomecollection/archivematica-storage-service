@@ -200,7 +200,7 @@ class S3(models.Model):
             LOGGER.warning(err_str)
             raise StorageException(err_str)
 
-    def move_to_storage_service(self, src_path, dest_path, dest_space):
+    def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
         self._ensure_bucket_exists()
         bucket = self.resource.Bucket(self.bucket_name)
 

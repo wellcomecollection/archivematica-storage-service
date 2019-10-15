@@ -162,6 +162,8 @@ class TestWellcomeMoveToStorageService(TestCase):
     @mock_s3
     @mock.patch('locations.models.wellcome.StorageServiceClient')
     def test_copies_files_from_ia_provider(self, mock_wellcome_client_class):
+        package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
+        package.misc_attributes['bag_version'] = 'v3'
         self._s3.create_bucket(Bucket='ia-bucket')
         self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v1/subdir/file1')
 
@@ -173,14 +175,16 @@ class TestWellcomeMoveToStorageService(TestCase):
                 'provider': {
                     'id': 'aws-s3-ia',
                 }
-            }
+            },
+            'version': 'v1',
         }
 
         self.wellcome_object.move_to_storage_service(
             '/name-of-space/name-bag-id.tar.gz',
             os.path.join(self.tmp_dir, 'name-bag-id.tar.gz'),
-            'space-uuid'
+            'space-uuid',
+            package=package,
         )
 
-        mock_wellcome.get_bag.assert_called_with('name-of-space', 'bag-id', version='v1')
+        mock_wellcome.get_bag.assert_called_with('name-of-space', 'bag-id', version='v3')
         assert os.path.exists(os.path.join(self.tmp_dir, 'name-bag-id.tar.gz'))

@@ -92,7 +92,7 @@ class Arkivum(models.Model):
         if response.status_code != 204:
             raise StorageException("Unable to delete %s", delete_path)
 
-    def move_to_storage_service(self, src_path, dest_path, dest_space):
+    def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
         """ Moves src_path to dest_space.staging_path/dest_path. """
         # Get from watched dir
         if self.remote_user and self.remote_name:

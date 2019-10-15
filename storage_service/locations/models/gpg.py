@@ -87,7 +87,7 @@ class GPG(models.Model):
         Location.REPLICATOR,
     ]
 
-    def move_to_storage_service(self, src_path, dst_path, dst_space):
+    def move_to_storage_service(self, src_path, dst_path, dst_space, package=None):
         """Moves package at GPG space (at path ``src_path``) to SS at path
         ``dst_path`` and decrypts it there.
         """

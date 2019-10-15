@@ -197,7 +197,7 @@ class Dataverse(URLMixin, models.Model):
         entries = list(properties.keys())
         return {"directories": [], "entries": entries, "properties": properties}
 
-    def move_to_storage_service(self, src_path, dest_path, dest_space):
+    def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
         """
         Fetch dataset with ID `src_path` to dest_space.staging_path/dest_path.
         """
