@@ -59,7 +59,7 @@ class NFS(models.Model):
         Location.BACKLOG,
     ]
 
-    def move_to_storage_service(self, src_path, dest_path, dest_space):
+    def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
         """ Moves src_path to dest_space.staging_path/dest_path. """
         self.space.create_local_directory(dest_path)
         return self.space.move_rsync(src_path, dest_path)

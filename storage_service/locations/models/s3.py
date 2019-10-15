@@ -191,7 +191,7 @@ class S3(S3SpaceModelMixin):
         for objectSummary in objects:
             objectSummary.delete()
 
-    def move_to_storage_service(self, src_path, dest_path, dest_space):
+    def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
         self._ensure_bucket_exists()
         bucket = self.s3_resource.Bucket(self.bucket_name)
 

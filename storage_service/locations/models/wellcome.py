@@ -89,7 +89,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
     def delete_path(self, delete_path):
         LOGGER.debug('Deleting %s from Wellcome storage', delete_path)
 
-    def move_to_storage_service(self, src_path, dest_path, dest_space):
+    def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
         """ Moves src_path to dest_space.staging_path/dest_path. """
         LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)',
             src_path, dest_path, dest_space)
@@ -98,10 +98,14 @@ class WellcomeStorageService(S3SpaceModelMixin):
         filename = source
         filename, ext = source.split('.', 1)
         name, source_id = filename.split('-', 1)
-        version = "v1"
 
-        bag = self.wellcome_client.get_bag(space_id, source_id, version=version)
+        bag_kwargs = {}
+        if package and 'bag_version' in package.misc_attributes:
+            bag_kwargs['version'] = package.misc_attributes['bag_version']
+
+        bag = self.wellcome_client.get_bag(space_id, source_id, **bag_kwargs)
         loc = bag['location']
+        version = bag['version']
         LOGGER.debug("Fetching files from s3://%s/%s", loc['bucket'], loc['path'])
         bucket = self.s3_resource.Bucket(loc['bucket'])
 

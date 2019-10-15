@@ -287,7 +287,7 @@ class Duracloud(models.Model):
 
         return True
 
-    def move_to_storage_service(self, src_path, dest_path, dest_space):
+    def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
         """ Moves src_path to dest_space.staging_path/dest_path. """
         # Convert unicode strings to byte strings
         #  .replace() doesn't handle mixed unicode/str well, and it's easiest to put it all in strs

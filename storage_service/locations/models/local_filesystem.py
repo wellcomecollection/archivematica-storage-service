@@ -36,7 +36,7 @@ class LocalFilesystem(models.Model):
         Location.REPLICATOR,
     ]
 
-    def move_to_storage_service(self, src_path, dest_path, dest_space):
+    def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
         """ Moves src_path to dest_space.staging_path/dest_path. """
         # Archivematica expects the file to still be on disk even after stored
         self.space.create_local_directory(dest_path)
