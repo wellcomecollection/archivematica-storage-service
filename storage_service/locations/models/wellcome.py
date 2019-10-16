@@ -94,8 +94,8 @@ class WellcomeStorageService(S3SpaceModelMixin):
         LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)',
             src_path, dest_path, dest_space)
 
-        space_id, source = src_path.lstrip('/').split('/')
-        filename = source
+        components = src_path.lstrip('/').split('/')
+        space_id, source = components[0], components[-1]
         filename, ext = source.split('.', 1)
         name, source_id = filename.split('-', 1)
 
@@ -121,6 +121,12 @@ class WellcomeStorageService(S3SpaceModelMixin):
 
             LOGGER.debug("Downloading %s", objectSummary.key)
             bucket.download_file(objectSummary.key, dest_file)
+
+        # Ensure the target directory exists
+        try:
+            os.makedirs(os.path.dirname(dest_path))
+        except os.error:
+            pass
 
         # Now compress the temporary dir contents, writing to the path
         # Archivematica expects.
@@ -164,6 +170,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
             package.status = Package.STAGING
             package.save()
 
+            is_reingest = 'ingest_id' in package.misc_attributes
             LOGGER.info('Callback will be to %s', callback_url)
             location = wellcome.create_s3_ingest(
                 space_id=space_id,
@@ -171,7 +178,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
                 s3_bucket=self.bucket_name,
                 callback_url=callback_url,
                 external_identifier=package.uuid,
-                ingest_type="create",
+                ingest_type="update" if is_reingest else "create",
             )
             LOGGER.info('Ingest_location: %s', location)
 
