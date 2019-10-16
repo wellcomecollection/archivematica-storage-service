@@ -77,6 +77,34 @@ class TestWellcomeMoveFromStorageService(TestCase):
 
     @mock.patch('time.sleep')
     @mock.patch('locations.models.wellcome.StorageServiceClient')
+    def test_updates_bag_if_reingest(self, mock_wellcome_client_class, mock_sleep):
+        package = self.get_package()
+        package.misc_attributes={'ingest_id': 'my-ingest-id'}
+        package.save()
+        self.wellcome_object.move_from_storage_service(
+            os.path.join(FIXTURES_DIR, 'small_compressed_bag.zip'),
+            '/born-digital/bag.zip',
+            package=package
+        )
+
+        mock_wellcome_client_class.assert_called_with(
+            api_url=self.wellcome_object.api_root_url,
+            token_url=self.wellcome_object.token_url,
+            client_id=self.wellcome_object.app_client_id,
+            client_secret=self.wellcome_object.app_client_secret,
+        )
+
+        mock_wellcome_client_class.return_value.create_s3_ingest.assert_called_with(
+            space_id='born-digital',
+            s3_key='born-digital/bag.zip',
+            s3_bucket=self.wellcome_object.s3_bucket,
+            callback_url='https://test.localhost/api/v2/file/6465da4a-ea88-4300-ac56-9641125f1276/wellcome_callback/?username=username&api_key=api_key',
+            external_identifier=package.uuid,
+            ingest_type='update',
+        )
+
+    @mock.patch('time.sleep')
+    @mock.patch('locations.models.wellcome.StorageServiceClient')
     def test_waits_for_callback(self, mock_wellcome_client_class, mock_sleep):
         package = self.get_package()
         self.wellcome_object.move_from_storage_service(
@@ -159,13 +187,14 @@ class TestWellcomeMoveToStorageService(TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp_dir)
 
+
     @mock_s3
     @mock.patch('locations.models.wellcome.StorageServiceClient')
     def test_copies_files_from_ia_provider(self, mock_wellcome_client_class):
         package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
         package.misc_attributes['bag_version'] = 'v3'
         self._s3.create_bucket(Bucket='ia-bucket')
-        self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v1/subdir/file1')
+        self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v3/subdir/file1')
 
         mock_wellcome = mock_wellcome_client_class.return_value
         mock_wellcome.get_bag.return_value = {
@@ -176,7 +205,7 @@ class TestWellcomeMoveToStorageService(TestCase):
                     'id': 'aws-s3-ia',
                 }
             },
-            'version': 'v1',
+            'version': 'v3',
         }
 
         self.wellcome_object.move_to_storage_service(
@@ -188,3 +217,36 @@ class TestWellcomeMoveToStorageService(TestCase):
 
         mock_wellcome.get_bag.assert_called_with('name-of-space', 'bag-id', version='v3')
         assert os.path.exists(os.path.join(self.tmp_dir, 'name-bag-id.tar.gz'))
+
+    @mock_s3
+    @mock.patch('locations.models.wellcome.StorageServiceClient')
+    def test_supports_path_containing_uuid(self, mock_wellcome_client_class):
+        package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
+        package.misc_attributes['bag_version'] = 'v3'
+        self._s3.create_bucket(Bucket='ia-bucket')
+        self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v3/subdir/file1')
+
+        mock_wellcome = mock_wellcome_client_class.return_value
+        mock_wellcome.get_bag.return_value = {
+            'location': {
+                'bucket': 'ia-bucket',
+                'path': '/bucket-subdir/bag-id',
+                'provider': {
+                    'id': 'aws-s3-ia',
+                }
+            },
+            'version': 'v3',
+        }
+
+
+        src_path = '/name-of-space/aaaa/bbbb/cccc/dddd/eeee/ffff/gggg/hhhh/name-bag-id.tar.gz'
+        dest_path = os.path.join(self.tmp_dir, 'aaaa/bbbb/cccc/dddd/eeee/ffff/gggg/hhhh/name-bag-id.tar.gz')
+        self.wellcome_object.move_to_storage_service(
+            src_path,
+            dest_path,
+            'space-uuid',
+            package=package,
+        )
+
+        mock_wellcome.get_bag.assert_called_with('name-of-space', 'bag-id', version='v3')
+        assert os.path.exists(dest_path)
