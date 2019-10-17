@@ -35,8 +35,9 @@ def handle_ingest(ingest, package):
         package.status = Package.UPLOADED
         # Package path format: NAME-uuid.tar.gz
         package.current_path = os.path.basename(package.current_path)
-        package.misc_attributes['ingest_id'] = ingest['id']
-        package.misc_attributes['bag_version'] = ingest['bag']['info']['version']
+        bag_info = ingest['bag']['info']
+        package.misc_attributes['bag_id'] = bag_info['externalIdentifier']
+        package.misc_attributes['bag_version'] = bag_info['version']
 
         LOGGER.debug('Package path: %s', package.current_path)
         LOGGER.debug('Package attributes: %s', package.misc_attributes)
@@ -166,10 +167,13 @@ class WellcomeStorageService(S3SpaceModelMixin):
             location = package.current_location
             space_id = location.relative_path.strip(os.path.sep)
 
+            # For reingests, the package status will still be 'uploaded'
+            # We want to use this to detect when upload is complete,
+            # so it is explicitly reset here.
             package.status = Package.STAGING
             package.save()
 
-            is_reingest = 'ingest_id' in package.misc_attributes
+            is_reingest = 'bag_id' in package.misc_attributes
             LOGGER.info('Callback will be to %s', callback_url)
             location = wellcome.create_s3_ingest(
                 space_id=space_id,
