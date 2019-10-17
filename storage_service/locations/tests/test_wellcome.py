@@ -79,7 +79,7 @@ class TestWellcomeMoveFromStorageService(TestCase):
     @mock.patch('locations.models.wellcome.StorageServiceClient')
     def test_updates_bag_if_reingest(self, mock_wellcome_client_class, mock_sleep):
         package = self.get_package()
-        package.misc_attributes={'ingest_id': 'my-ingest-id'}
+        package.misc_attributes['bag_id'] = package.uuid
         package.save()
         self.wellcome_object.move_from_storage_service(
             os.path.join(FIXTURES_DIR, 'small_compressed_bag.zip'),
@@ -151,7 +151,7 @@ class TestWellcomeMoveFromStorageService(TestCase):
         package.refresh_from_db()
         assert package.status == models.Package.UPLOADED
         assert package.current_path == 'bag-6465da4a-ea88-4300-ac56-9641125f1276.zip'
-        assert package.misc_attributes['ingest_id'] == 'ingest-id'
+        assert package.misc_attributes['bag_id'] == 'external-id'
         assert package.misc_attributes['bag_version'] == 'v3'
 
     @mock.patch('time.sleep')
