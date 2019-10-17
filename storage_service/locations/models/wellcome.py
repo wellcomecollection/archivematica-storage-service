@@ -116,7 +116,10 @@ class WellcomeStorageService(S3SpaceModelMixin):
         s3_prefix = '%s/%s' % (loc['path'].lstrip('/'), bag['version'])
         objects = bucket.objects.filter(Prefix=s3_prefix)
         for objectSummary in objects:
-            dest_file = objectSummary.key.replace(s3_prefix, tmp_aip_dir, 1)
+            dest_file = os.path.join(
+                tmp_aip_dir,
+                os.path.relpath(objectSummary.key, s3_prefix)
+            )
             self.space.create_local_directory(dest_file)
 
             LOGGER.debug("Downloading %s", objectSummary.key)
