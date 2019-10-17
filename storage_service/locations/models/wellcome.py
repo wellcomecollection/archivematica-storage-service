@@ -32,28 +32,23 @@ def handle_ingest(ingest, package):
     """
     status = ingest['status']['id']
     if status == 'succeeded':
-        bag_info = ingest['bag']['info']
-        external_id = bag_info['externalIdentifier']
-        bag_version = bag_info['version']
         package.status = Package.UPLOADED
+        # Package path format: NAME-uuid.tar.gz
         package.current_path = os.path.basename(package.current_path)
-        LOGGER.debug('Saving path as %s', package.current_path)
         package.misc_attributes['ingest_id'] = ingest['id']
-        package.misc_attributes['bag_version'] = bag_version
+        package.misc_attributes['bag_version'] = ingest['bag']['info']['version']
+
+        LOGGER.debug('Package path: %s', package.current_path)
+        LOGGER.debug('Package attributes: %s', package.misc_attributes)
+
         package.save()
-        LOGGER.info('Ingest ID: %s', ingest['id'])
-        LOGGER.info('External ID: %s', external_id)
-        LOGGER.info('Bag version: %s', bag_version)
+
     elif status =='failed':
         LOGGER.error('Ingest failed')
         package.status = Package.FAIL
         package.save()
         for event in ingest['events']:
             LOGGER.info('{type}: {description}'.format(**event))
-    #else:
-    #    LOGGER.error('Unknown ingest status %s' % status)
-    #    package.status = Package.FAIL
-    #    package.save()
 
 
 class WellcomeStorageService(S3SpaceModelMixin):
@@ -94,26 +89,31 @@ class WellcomeStorageService(S3SpaceModelMixin):
         LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)',
             src_path, dest_path, dest_space)
 
+        # Possible formats for the path
+        #   /space-id/NAME-uuid.tar.gz
+        #   /space-id/u/u/i/d/NAME-uuid-tar.gz (this happens on reingest)
         components = src_path.lstrip('/').split('/')
         space_id, source = components[0], components[-1]
         filename, ext = source.split('.', 1)
         name, source_id = filename.split('-', 1)
 
+        # Request a specific bag version if the package has one
         bag_kwargs = {}
         if package and 'bag_version' in package.misc_attributes:
             bag_kwargs['version'] = package.misc_attributes['bag_version']
 
+        # Look up the bag details by UUID
         bag = self.wellcome_client.get_bag(space_id, source_id, **bag_kwargs)
         loc = bag['location']
-        version = bag['version']
         LOGGER.debug("Fetching files from s3://%s/%s", loc['bucket'], loc['path'])
         bucket = self.s3_resource.Bucket(loc['bucket'])
 
+        # The bag contents are stored as individual files on S3, with a
+        # common prefix of the form <space_id>/<bag-id>/<version>
+        # Download all objects with that prefix to a temporary space
         tmpdir = tempfile.mkdtemp()
         tmp_aip_dir = os.path.join(tmpdir, filename)
-        # The bag is stored unzipped (i.e. as a directory tree).
-        # Download all objects in the source directory to a temporary space
-        s3_prefix = '%s/%s' % (loc['path'].lstrip('/'), version)
+        s3_prefix = '%s/%s' % (loc['path'].lstrip('/'), bag['version'])
         objects = bucket.objects.filter(Prefix=s3_prefix)
         for objectSummary in objects:
             dest_file = objectSummary.key.replace(s3_prefix, tmp_aip_dir, 1)
@@ -128,13 +128,12 @@ class WellcomeStorageService(S3SpaceModelMixin):
         except os.error:
             pass
 
-        # Now compress the temporary dir contents, writing to the path
-        # Archivematica expects.
+        # Now compress the temporary dir contents, writing to the destination path
+        # Archivematica gave us
         cmd = ["/bin/tar", "cz", "-C", tmpdir, "-f", dest_path, filename]
         subprocess.call(cmd)
 
         shutil.rmtree(tmpdir)
-
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
         """ Moves self.staging_path/src_path to dest_path. """
@@ -144,7 +143,6 @@ class WellcomeStorageService(S3SpaceModelMixin):
         bucket = self.s3_resource.Bucket(self.s3_bucket)
 
         if os.path.isfile(src_path):
-
             # Upload to s3
             with open(src_path, 'rb') as data:
                 bucket.upload_fileobj(data, s3_temporary_path)
@@ -165,8 +163,6 @@ class WellcomeStorageService(S3SpaceModelMixin):
             location = package.current_location
             space_id = location.relative_path.strip(os.path.sep)
 
-            # Store name of package so it can be used on reingest
-            LOGGER.debug('Path: %s', package.current_path)
             package.status = Package.STAGING
             package.save()
 
