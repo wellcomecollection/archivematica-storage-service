@@ -185,12 +185,12 @@ class WellcomeStorageService(S3SpaceModelMixin):
             )
             LOGGER.info('Ingest_location: %s', location)
 
-            print('Package status %s' % package.status)
+            LOGGER.debug('Package status %s', package.status)
             while package.status == Package.STAGING:
                 # Wait for callback to have been called
                 for i in range(6):
                     package.refresh_from_db()
-                    print('Package status %s' % package.status)
+                    LOGGER.debug('Package status %s', package.status)
                     time.sleep(10)
                     if package.status != Package.STAGING:
                         break
