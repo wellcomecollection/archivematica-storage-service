@@ -32,7 +32,8 @@ def handle_ingest(ingest, package):
     status = ingest['status']['id']
     if status == 'succeeded':
         package.status = Package.UPLOADED
-        # Package path format: NAME-uuid.tar.gz
+        # Strip the directory context from the package path so it is
+        # in the format NAME-uuid.tar.gz
         package.current_path = os.path.basename(package.current_path)
         bag_info = ingest['bag']['info']
         package.misc_attributes['bag_id'] = bag_info['externalIdentifier']
@@ -165,12 +166,15 @@ class WellcomeStorageService(models.Model):
         name, source_id = filename.split('-', 1)
 
         # Request a specific bag version if the package has one
-        bag_kwargs = {}
+        bag_kwargs = {
+            'space_id': space_id,
+            'source_id': source_id,
+        }
         if package and 'bag_version' in package.misc_attributes:
             bag_kwargs['version'] = package.misc_attributes['bag_version']
 
         # Look up the bag details by UUID
-        bag = self.wellcome_client.get_bag(space_id, source_id, **bag_kwargs)
+        bag = self.wellcome_client.get_bag(**bag_kwargs)
         loc = bag['location']
         LOGGER.debug("Fetching files from s3://%s/%s", loc['bucket'], loc['path'])
         bucket = self.s3_resource.Bucket(loc['bucket'])
@@ -239,6 +243,8 @@ class WellcomeStorageService(models.Model):
             package.status = Package.STAGING
             package.save()
 
+            # Either create or update a bag on the storage service
+            # https://github.com/wellcometrust/platform/tree/master/docs/rfcs/002-archival_storage#updating-an-existing-bag
             is_reingest = 'bag_id' in package.misc_attributes
             LOGGER.info('Callback will be to %s', callback_url)
             location = wellcome.create_s3_ingest(
