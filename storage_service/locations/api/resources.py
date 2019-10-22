@@ -486,6 +486,7 @@ class LocationResource(ModelResource):
                     source_path=source_path,
                     destination_path=destination_path,
                     destination_space=destination_space,
+                    package=None,
                 )
                 origin_space.post_move_to_storage_service()
                 destination_space.move_from_storage_service(

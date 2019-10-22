@@ -114,7 +114,7 @@ class DSpace(models.Model):
     def delete_path(self, delete_path):
         raise NotImplementedError(_("DSpace does not implement deletion"))
 
-    def move_to_storage_service(self, src_path, dest_path, dest_space):
+    def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
         """ Moves src_path to dest_space.staging_path/dest_path. """
         raise NotImplementedError(_("DSpace does not implement fetching packages"))
 

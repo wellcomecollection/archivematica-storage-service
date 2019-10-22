@@ -100,7 +100,7 @@ class Lockssomatic(models.Model):
         LOGGER.warning("Lockssomatic does not support browsing")
         return {"directories": [], "entries": []}
 
-    def move_to_storage_service(self, source_path, destination_path, dest_space):
+    def move_to_storage_service(self, source_path, destination_path, dest_space, package=None):
         """ Moves source_path to dest_space.staging_path/destination_path. """
         # Check if in SS internal, if not then fetch from LOM
         raise NotImplementedError("LOCKSS-o-matic has not implemented retrieval.")
