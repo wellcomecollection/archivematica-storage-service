@@ -215,7 +215,7 @@ class TestWellcomeMoveToStorageService(TestCase):
             package=package,
         )
 
-        mock_wellcome.get_bag.assert_called_with('name-of-space', 'bag-id', version='v3')
+        mock_wellcome.get_bag.assert_called_with(space_id='name-of-space', source_id='bag-id', version='v3')
         assert os.path.exists(os.path.join(self.tmp_dir, 'name-bag-id.tar.gz'))
 
     @mock_s3
@@ -248,5 +248,5 @@ class TestWellcomeMoveToStorageService(TestCase):
             package=package,
         )
 
-        mock_wellcome.get_bag.assert_called_with('name-of-space', 'bag-id', version='v3')
+        mock_wellcome.get_bag.assert_called_with(space_id='name-of-space', source_id='bag-id', version='v3')
         assert os.path.exists(dest_path)
