@@ -50,6 +50,9 @@ def handle_ingest(ingest, package):
         for event in ingest['events']:
             LOGGER.info('{type}: {description}'.format(**event))
 
+    else:
+        LOGGER.info("Package status: %s", status)
+
 
 class WellcomeStorageService(models.Model):
     space = models.OneToOneField('Space', to_field='uuid')
