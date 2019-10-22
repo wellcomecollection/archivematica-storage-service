@@ -6,6 +6,7 @@ import boto3
 import requests
 import shutil
 import subprocess
+import tarfile
 import tempfile
 import time
 from django.db import models
@@ -209,8 +210,8 @@ class WellcomeStorageService(models.Model):
 
         # Now compress the temporary dir contents, writing to the destination path
         # Archivematica gave us
-        cmd = ["/bin/tar", "cz", "-C", tmpdir, "-f", dest_path, filename]
-        subprocess.call(cmd)
+        with tarfile.open(dest_path, "w:gz") as tarball:
+            tarball.add(tmp_aip_dir, arcname=filename)
 
         shutil.rmtree(tmpdir)
 
