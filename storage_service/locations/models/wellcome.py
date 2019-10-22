@@ -55,7 +55,7 @@ def handle_ingest(ingest, package):
             LOGGER.info('{type}: {description}'.format(**event))
 
     else:
-        LOGGER.info("Package status: %s", status)
+        LOGGER.info("Unrecognised package status: %s", status)
 
 
 class WellcomeStorageService(S3SpaceModelMixin):
@@ -181,7 +181,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
             space_id = location.relative_path.strip(os.path.sep)
 
             # For reingests, the package status will still be 'uploaded'
-            # We want to use this to detect when upload is complete,
+            # We use the status to detect when upload is complete,
             # so it is explicitly reset here.
             package.status = Package.STAGING
             package.save()
