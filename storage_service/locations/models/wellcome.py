@@ -1,3 +1,4 @@
+import errno
 import logging
 import os
 
@@ -197,10 +198,14 @@ class WellcomeStorageService(models.Model):
             bucket.download_file(objectSummary.key, dest_file)
 
         # Ensure the target directory exists
+        dest_dir = os.path.dirname(dest_path)
         try:
-            os.makedirs(os.path.dirname(dest_path))
-        except os.error:
-            pass
+            os.makedirs(dest_dir)
+        except OSError as exc:
+            if exc.errno == errno.EEXIST and os.path.isdir(dest_dir):
+                pass
+            else:
+                raise
 
         # Now compress the temporary dir contents, writing to the destination path
         # Archivematica gave us
