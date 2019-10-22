@@ -291,6 +291,7 @@ def get_compression(pointer_path):
     :returns: one of the constants in ``COMPRESSION_ALGORITHMS``.
     """
     doc = etree.parse(pointer_path)
+    fallback_algorithm = COMPRESSION_7Z_BZIP
 
     puid = doc.findtext(".//premis:formatRegistryKey", namespaces=NSMAP)
     if puid is None:
@@ -308,21 +309,22 @@ def get_compression(pointer_path):
             return COMPRESSION_7Z_COPY
         else:
             LOGGER.warning(
-                "Unable to determine reingested compression"
-                " algorithm, defaulting to bzip2."
+                "Unable to determine reingested compression algorithm for %s "
+                "(%r, %r), defaulting to %s.",
+                pointer_path, puid, algo, fallback_algorithm
             )
-            return COMPRESSION_7Z_BZIP
+            return fallback_algorithm
     elif puid == PRONOM_BZIP2:  # Bzipped (probably tar)
         return COMPRESSION_TAR_BZIP2
     elif puid == PRONOM_GZIP:
         return COMPRESSION_TAR_GZIP
     else:
         LOGGER.warning(
-            "Unable to determine reingested file format %s,"
-            " defaulting recompression algorithm to bzip2.",
-            puid
+            "Unable to determine reingested file format for %s (%r),"
+            " defaulting recompression algorithm to %s.",
+            pointer_path, puid, fallback_algorithm
         )
-        return COMPRESSION_7Z_BZIP
+        return fallback_algorithm
 
 
 def get_compress_command(compression, extract_path, basename, full_path):
