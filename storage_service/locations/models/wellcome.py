@@ -13,7 +13,7 @@ from django.db import models
 from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext_lazy as _
 from django.utils.six.moves.urllib.parse import urljoin, urlencode
-from wellcome_storage_service import StorageServiceClient
+from wellcome_storage_service import download_bag, StorageServiceClient
 
 from . import StorageException
 from . import Package
@@ -114,28 +114,14 @@ class WellcomeStorageService(S3SpaceModelMixin):
 
         # Look up the bag details by UUID
         bag = self.wellcome_client.get_bag(**bag_kwargs)
-        loc = bag['location']
-        LOGGER.debug("Fetching files from s3://%s/%s", loc['bucket'], loc['path'])
-        bucket = self.s3_resource.Bucket(loc['bucket'])
 
-        # The bag contents are stored as individual files on S3, with a
-        # common prefix of the form <space_id>/<bag-id>/<version>
-        # Download all objects with that prefix to a temporary space
+        # Download the bag contents to a temporary space
         tmpdir = tempfile.mkdtemp()
         tmp_aip_dir = os.path.join(tmpdir, filename)
-        s3_prefix = '%s/%s' % (loc['path'].lstrip('/'), bag['version'])
-        objects = bucket.objects.filter(Prefix=s3_prefix)
-        for objectSummary in objects:
-            dest_file = os.path.join(
-                tmp_aip_dir,
-                os.path.relpath(objectSummary.key, s3_prefix)
-            )
-            self.space.create_local_directory(dest_file)
+        download_bag(storage_manifest=bag, out_dir=tmp_aip_dir)
 
-            LOGGER.debug("Downloading %s", objectSummary.key)
-            bucket.download_file(objectSummary.key, dest_file)
-
-        # Ensure the target directory exists
+        # Ensure the target directory exists. This is where the tarball
+        # will be created.
         dest_dir = os.path.dirname(dest_path)
         try:
             os.makedirs(dest_dir)

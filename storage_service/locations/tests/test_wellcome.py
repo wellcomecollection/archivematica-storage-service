@@ -194,19 +194,31 @@ class TestWellcomeMoveToStorageService(TestCase):
         package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
         package.misc_attributes['bag_version'] = 'v3'
         self._s3.create_bucket(Bucket='ia-bucket')
-        self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v3/subdir/file1')
+        self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v3/data/file1')
 
         mock_wellcome = mock_wellcome_client_class.return_value
         mock_wellcome.get_bag.return_value = {
             'location': {
                 'bucket': 'ia-bucket',
-                'path': '/bucket-subdir/bag-id',
+                'path': 'bucket-subdir/bag-id',
                 'provider': {
                     'id': 'aws-s3-ia',
                 }
             },
+            'manifest': {
+                'files': [
+                    {
+                        'name': 'data/file1',
+                        'path': 'v3/data/file1',
+                    }
+                ]
+            },
+            'tagManifest': {
+                'files': []
+            },
             'version': 'v3',
         }
+
 
         self.wellcome_object.move_to_storage_service(
             '/name-of-space/name-bag-id.tar.gz',
@@ -224,16 +236,27 @@ class TestWellcomeMoveToStorageService(TestCase):
         package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
         package.misc_attributes['bag_version'] = 'v3'
         self._s3.create_bucket(Bucket='ia-bucket')
-        self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v3/subdir/file1')
+        self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v3/data/file1')
 
         mock_wellcome = mock_wellcome_client_class.return_value
         mock_wellcome.get_bag.return_value = {
             'location': {
                 'bucket': 'ia-bucket',
-                'path': '/bucket-subdir/bag-id',
+                'path': 'bucket-subdir/bag-id',
                 'provider': {
                     'id': 'aws-s3-ia',
-                }
+                },
+            },
+            'manifest': {
+                'files': [
+                    {
+                        'name': 'data/file1',
+                        'path': 'v3/data/file1',
+                    }
+                ]
+            },
+            'tagManifest': {
+                'files': []
             },
             'version': 'v3',
         }
