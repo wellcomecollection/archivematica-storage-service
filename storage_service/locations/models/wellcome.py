@@ -208,6 +208,7 @@ class WellcomeStorageService(models.Model):
             else:
                 raise
 
+        LOGGER.debug("Compressing %s to %s", tmp_aip_dir, dest_path)
         # Now compress the temporary dir contents, writing to the destination path
         # Archivematica gave us
         with tarfile.open(dest_path, "w:gz") as tarball:
