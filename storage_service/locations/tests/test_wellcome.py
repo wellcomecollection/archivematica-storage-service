@@ -210,6 +210,7 @@ class TestWellcomeMoveToStorageService(TestCase):
                     {
                         'name': 'data/file1',
                         'path': 'v3/data/file1',
+                        'size': 13,
                     }
                 ]
             },
@@ -252,6 +253,7 @@ class TestWellcomeMoveToStorageService(TestCase):
                     {
                         'name': 'data/file1',
                         'path': 'v3/data/file1',
+                        'size': 13,
                     }
                 ]
             },

@@ -13,7 +13,7 @@ from django.db import models
 from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext_lazy as _
 from django.utils.six.moves.urllib.parse import urljoin, urlencode
-from wellcome_storage_service import download_bag, StorageServiceClient
+from wellcome_storage_service import download_compressed_bag, StorageServiceClient
 
 from . import StorageException
 from . import Package
@@ -178,11 +178,6 @@ class WellcomeStorageService(models.Model):
         # Look up the bag details by UUID
         bag = self.wellcome_client.get_bag(**bag_kwargs)
 
-        # Download the bag contents to a temporary space
-        tmpdir = tempfile.mkdtemp()
-        tmp_aip_dir = os.path.join(tmpdir, filename)
-        download_bag(storage_manifest=bag, out_dir=tmp_aip_dir)
-
         # Ensure the target directory exists. This is where the tarball
         # will be created.
         dest_dir = os.path.dirname(dest_path)
@@ -194,13 +189,7 @@ class WellcomeStorageService(models.Model):
             else:
                 raise
 
-        LOGGER.debug("Compressing %s to %s", tmp_aip_dir, dest_path)
-        # Now compress the temporary dir contents, writing to the destination path
-        # Archivematica gave us
-        with tarfile.open(dest_path, "w:gz") as tarball:
-            tarball.add(tmp_aip_dir, arcname=filename)
-
-        shutil.rmtree(tmpdir)
+        download_compressed_bag(storage_manifest=bag, out_path=dest_path)
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
         """ Moves self.staging_path/src_path to dest_path. """
