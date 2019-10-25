@@ -3,6 +3,7 @@ import logging
 import errno
 import os
 import boto3
+import json
 import requests
 import shutil
 import subprocess
@@ -27,6 +28,18 @@ CALLBACK_HELP_TEXT = _('Publicly accessible URL of the Archivematica storage ser
 
 LOGGER = logging.getLogger(__name__)
 
+
+# The script we use to download a compressed bag from S3.
+# This is run in a subprocess.
+DOWNLOAD_BAG_SCRIPT = '''
+import json, sys
+from wellcome_storage_service import download_compressed_bag
+
+bag = json.loads(sys.argv[1])
+dest_path = sys.argv[2]
+
+download_compressed_bag(storage_manifest=bag, out_path=dest_path)
+'''
 
 def handle_ingest(ingest, package):
     """
@@ -96,6 +109,17 @@ class WellcomeStorageService(S3SpaceModelMixin):
         LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)',
             src_path, dest_path, dest_space)
 
+        # Ensure the target directory exists. This is where the tarball
+        # will be created.
+        dest_dir = os.path.dirname(dest_path)
+        try:
+            os.makedirs(dest_dir)
+        except OSError as exc:
+            if exc.errno == errno.EEXIST and os.path.isdir(dest_dir):
+                pass
+            else:
+                raise
+
         # Possible formats for the path
         #   /space-id/NAME-uuid.tar.gz
         #   /space-id/u/u/i/d/NAME-uuid-tar.gz (this happens on reingest)
@@ -114,44 +138,20 @@ class WellcomeStorageService(S3SpaceModelMixin):
 
         # Look up the bag details by UUID
         bag = self.wellcome_client.get_bag(**bag_kwargs)
-        loc = bag['location']
-        LOGGER.debug("Fetching files from s3://%s/%s", loc['bucket'], loc['path'])
-        bucket = self.s3_resource.Bucket(loc['bucket'])
 
-        # The bag contents are stored as individual files on S3, with a
-        # common prefix of the form <space_id>/<bag-id>/<version>
-        # Download all objects with that prefix to a temporary space
-        tmpdir = tempfile.mkdtemp()
-        tmp_aip_dir = os.path.join(tmpdir, filename)
-        s3_prefix = '%s/%s' % (loc['path'].lstrip('/'), bag['version'])
-        objects = bucket.objects.filter(Prefix=s3_prefix)
-        for objectSummary in objects:
-            dest_file = os.path.join(
-                tmp_aip_dir,
-                os.path.relpath(objectSummary.key, s3_prefix)
-            )
-            self.space.create_local_directory(dest_file)
-
-            LOGGER.debug("Downloading %s", objectSummary.key)
-            bucket.download_file(objectSummary.key, dest_file)
-
-        # Ensure the target directory exists
-        dest_dir = os.path.dirname(dest_path)
-        try:
-            os.makedirs(dest_dir)
-        except OSError as exc:
-            if exc.errno == errno.EEXIST and os.path.isdir(dest_dir):
-                pass
-            else:
-                raise
-
-        LOGGER.debug("Compressing %s to %s", tmp_aip_dir, dest_path)
-        # Now compress the temporary dir contents, writing to the destination path
-        # Archivematica gave us
-        with tarfile.open(dest_path, "w:gz") as tarball:
-            tarball.add(tmp_aip_dir, arcname=filename)
-
-        shutil.rmtree(tmpdir)
+        # We use a subprocess here because the compression of the download
+        # is CPU-intensive, especially for larger files, and can render the
+        # main process unresponsive. This can cause problems (a) for server
+        # responsiveness (b) because the server may stop responding to health
+        # checks, resulting in it being terminated before it can finish
+        # building the archive.
+        # See https://github.com/wellcometrust/platform/issues/3954
+        subprocess.check_call([
+            'python',
+            '-c', DOWNLOAD_BAG_SCRIPT,
+            json.dumps(bag),
+            dest_path
+        ], stderr=subprocess.STDOUT)
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
         """ Moves self.staging_path/src_path to dest_path. """
