@@ -36,6 +36,7 @@ idna==2.8
 ipaddress==1.0.23
 iso8601==0.1.12
 jmespath==0.9.4
+josepy==1.2.0
 jsonfield==2.0.1
 keystoneauth1==3.18.0
 logutils==0.3.4.1
@@ -43,6 +44,7 @@ git+https://github.com/seatme/django-longer-username.git@seatme#egg=longeruserna
 lxml==3.7.3
 metsrw==0.3.14
 monotonic==1.5
+mozilla-django-oidc==1.0.0
 msgpack==0.6.2
 mysqlclient==1.4.6
 ndg-httpsclient==0.4.2

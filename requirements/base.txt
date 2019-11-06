@@ -35,6 +35,7 @@ idna==2.8                 # via requests
 ipaddress==1.0.23         # via cryptography
 iso8601==0.1.12           # via keystoneauth1, oslo.utils
 jmespath==0.9.4           # via boto3, botocore
+josepy==1.2.0             # via mozilla-django-oidc
 jsonfield==2.0.1
 keystoneauth1==3.18.0     # via python-keystoneclient
 logutils==0.3.4.1
@@ -42,6 +43,7 @@ git+https://github.com/seatme/django-longer-username.git@seatme#egg=longeruserna
 lxml==3.7.3
 metsrw==0.3.14
 monotonic==1.5            # via oslo.utils
+mozilla-django-oidc==1.0.0
 msgpack==0.6.2            # via oslo.serialization
 mysqlclient==1.4.6        # via agentarchives
 ndg-httpsclient==0.4.2
