@@ -166,6 +166,7 @@ TEMPLATES = [
                 "django.template.context_processors.tz",
                 "django.template.context_processors.request",
                 "django.contrib.messages.context_processors.messages",
+                "common.context_processors.auth_methods",
             ],
             "debug": DEBUG,
         },
