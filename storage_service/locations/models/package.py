@@ -341,25 +341,9 @@ class Package(models.Model):
             )
 
         if self.is_compressed:
-            # Use lsar's JSON output to determine the directories in a
-            # compressed file. Since the index of the base directory may
-            # not be consistent, determine it by filtering all entries
-            # for directories, then determine the directory with the
-            # shortest name. (e.g. foo is the parent of foo/bar)
-            # NOTE: lsar's JSON output is broken in certain circumstances in
-            #       all released versions; make sure to use a patched version
-            #       for this to work.
-            command = ["lsar", "-ja", full_path]
-            output = subprocess.check_output(command)
-            output = json.loads(output)
-            directories = [
-                d["XADFileName"]
-                for d in output["lsarContents"]
-                if d.get("XADIsDirectory", False)
-            ]
-            directories = sorted(directories, key=len)
-            return directories[0]
-        return os.path.basename(full_path)
+            return utils.get_base_directory(full_path)
+        else:
+            return os.path.basename(full_path)
 
     def _check_quotas(self, dest_space, dest_location):
         """
