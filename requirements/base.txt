@@ -81,6 +81,6 @@ six==1.13.0               # via cryptography, debtcollector, django-extensions, 
 stevedore==1.31.0         # via keystoneauth1, oslo.config, python-keystoneclient
 sword2==0.2.1
 urllib3==1.24.3           # via botocore, requests
-wellcome-storage-service==1.4.0
+wellcome-storage-service==1.4.1
 whitenoise==3.3.0
 wrapt==1.11.2             # via debtcollector, positional
