@@ -2,6 +2,7 @@ import ast
 from collections import namedtuple
 import datetime
 import hashlib
+import json
 import logging
 from lxml import etree
 from lxml.builder import ElementMaker
@@ -615,3 +616,68 @@ def recalculate_size(rein_aip_internal_path):
     else:
         size = os.path.getsize(rein_aip_internal_path)
     return size
+
+
+def list_archive_directories(path):
+    """
+    Returns a list of directories in a compressed file.
+
+    For example, given an archive with the following contents:
+
+    .
+    |-- top_level
+        |-- mid_level1
+        |   |-- sub_dir
+        |       |-- hello.txt
+        |-- mid_level2
+            |-- greeting.txt
+
+    The set {"top_level", "top_level/mid_level1", "top_level/mid_level1/sub_dir",
+                          "top_level/mid_level2}.
+    """
+
+    # Use lsar's JSON output to determine the directories in a
+    # compressed file. Since the index of the base directory may
+    # not be consistent, determine it by filtering all entries
+    # for directories, then determine the directory with the
+    # shortest name. (e.g. foo is the parent of foo/bar)
+    # NOTE: lsar's JSON output is broken in certain circumstances in
+    #       all released versions; make sure to use a patched version
+    #       for this to work.
+    command = ["lsar", "-json-ascii", path]
+
+    output = subprocess.check_output(command)
+    output = json.loads(output)
+    directories = {
+        d["XADFileName"]
+        for d in output["lsarContents"]
+        if d.get("XADIsDirectory", False)
+    }
+
+    return directories
+
+
+def get_base_directory(path):
+    """
+    Returns the base directory of a compressed file.
+
+    This is the directory in which all of the contents of the package
+    are nested. For example, given an archive with the following contents:
+
+    .
+    |-- top_level
+        |-- mid_level
+            |-- sub_dir
+                |-- hello.txt
+
+    The string "top_level" would be returned.
+    """
+    directories = list_archive_directories(path)
+
+    try:
+        return min(directories, key=len)
+    except ValueError:
+        raise ValueError(
+            "Could not find base directory in %s: no directory entries in archive?" %
+            path
+        )

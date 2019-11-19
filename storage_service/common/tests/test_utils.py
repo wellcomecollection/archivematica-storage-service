@@ -1,3 +1,4 @@
+import os
 from StringIO import StringIO
 
 import mock
@@ -259,3 +260,31 @@ def test_get_format_info(compression, version, extension, program_name, transfor
     assert ext == extension
     assert program_name in prog_name
     assert fsentry.transform_files == transform
+
+
+@pytest.mark.parametrize("name, directories", [
+    # An archive created from three nested folders and a single file
+    ("a.tar.gz", ["a", "a/b", "a/b/c"]),
+
+    # An archive that contains a single text file
+    ("hello.txt.tbz", []),
+])
+def test_list_archive_directories(name, directories):
+    path = os.path.abspath(os.path.join("files", name))
+    assert utils.list_archive_directories(path) == directories
+
+
+@pytest.mark.parametrize("name, base_directory", [
+    # An archive created from three nested folders and a single file
+    ("a.tar.gz", "a"),
+])
+def test_get_base_directory(name, base_directory):
+    path = os.path.abspath(os.path.join("files", name))
+    assert utils.get_base_directory(path) == base_directory
+
+
+def test_get_base_directory_when_no_directory():
+    path = os.path.abspath(os.path.join("files", "hello.txt.tbz"))
+
+    with pytest.raises(ValueError, match="Could not find base directory"):
+        utils.get_base_directory(path)
