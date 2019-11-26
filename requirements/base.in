@@ -24,7 +24,7 @@ python-swiftclient==3.3.0
 requests==2.21.0
 requests-oauthlib==1.2.0
 sword2==0.2.1
-wellcome-storage-service==1.4.1
+wellcome-storage-service==1.5.0
 whitenoise==3.3.0
 agentarchives==0.4.0
 git+https://github.com/Brown-University-Library/django-shibboleth-remoteuser.git@67d270c65c201606fb86d548493d4b3fd8cc7a76#egg=django-shibboleth-remoteuser

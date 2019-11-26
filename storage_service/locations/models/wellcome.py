@@ -36,8 +36,9 @@ from wellcome_storage_service import download_compressed_bag
 
 bag = json.loads(sys.argv[1])
 dest_path = sys.argv[2]
+top_level_dir=sys.argv[3]
 
-download_compressed_bag(storage_manifest=bag, out_path=dest_path)
+download_compressed_bag(storage_manifest=bag, out_path=dest_path, top_level_dir=top_level_dir)
 '''
 
 def handle_ingest(ingest, package):
@@ -213,7 +214,8 @@ class WellcomeStorageService(models.Model):
             'python',
             '-c', DOWNLOAD_BAG_SCRIPT,
             json.dumps(bag),
-            dest_path
+            dest_path,
+            filename,
         ], stderr=subprocess.STDOUT)
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
