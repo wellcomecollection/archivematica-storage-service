@@ -136,7 +136,7 @@ vcrpy==2.0.1
 virtualenv==16.6.0        # via tox
 wcwidth==0.1.7            # via prompt-toolkit
 websocket-client==0.56.0  # via docker
-wellcome-storage-service==1.4.1
+wellcome-storage-service==1.5.0
 werkzeug==0.15.2          # via moto
 whitenoise==3.3.0
 wrapt==1.11.1

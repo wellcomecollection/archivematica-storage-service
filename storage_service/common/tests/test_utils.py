@@ -17,6 +17,9 @@ PROG_VERS_TAR = "tar"
 COMPRESS_ORDER_ONE = "1"
 COMPRESS_ORDER_TWO = "2"
 
+THIS_DIR = os.path.dirname(os.path.abspath(__file__))
+FILES_DIR = os.path.abspath(os.path.join(THIS_DIR, 'files'))
+
 
 @pytest.mark.parametrize(
     "pronom,algorithm,compression",
@@ -264,13 +267,13 @@ def test_get_format_info(compression, version, extension, program_name, transfor
 
 @pytest.mark.parametrize("name, directories", [
     # An archive created from three nested folders and a single file
-    ("a.tar.gz", ["a", "a/b", "a/b/c"]),
+    ("a.tar.gz", {"a", "a/b", "a/b/c"}),
 
     # An archive that contains a single text file
-    ("hello.txt.tbz", []),
+    ("hello.txt.tbz", set()),
 ])
 def test_list_archive_directories(name, directories):
-    path = os.path.abspath(os.path.join("files", name))
+    path = os.path.join(FILES_DIR, name)
     assert utils.list_archive_directories(path) == directories
 
 
@@ -279,12 +282,12 @@ def test_list_archive_directories(name, directories):
     ("a.tar.gz", "a"),
 ])
 def test_get_base_directory(name, base_directory):
-    path = os.path.abspath(os.path.join("files", name))
+    path = os.path.join(FILES_DIR, name)
     assert utils.get_base_directory(path) == base_directory
 
 
 def test_get_base_directory_when_no_directory():
-    path = os.path.abspath(os.path.join("files", "hello.txt.tbz"))
+    path = os.path.join(FILES_DIR, "hello.txt.tbz")
 
     with pytest.raises(ValueError, match="Could not find base directory"):
         utils.get_base_directory(path)
