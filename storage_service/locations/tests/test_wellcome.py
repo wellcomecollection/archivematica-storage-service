@@ -239,7 +239,8 @@ class TestWellcomeMoveToStorageService(TestCase):
             '-c',
             mock.ANY,
             mock.ANY,
-            dest_path
+            dest_path,
+            'name-bag-id',
         ], stderr=subprocess.STDOUT)
         assert json.loads(mock_call.call_args[0][0][3]) == mock_wellcome.get_bag.return_value
 
