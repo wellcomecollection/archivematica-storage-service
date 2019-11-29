@@ -175,10 +175,10 @@ class WellcomeStorageService(S3SpaceModelMixin):
                 self.callback_host,
                 '%s?%s' % (
                     reverse('wellcome_callback', args=['v2', 'file', package.uuid]),
-                    urlencode({
-                        'username': self.callback_username,
-                        'api_key': self.callback_api_key,
-                    })
+                    urlencode([
+                        ("username", self.callback_username),
+                        ("api_key", self.callback_api_key),
+                    ])
                 ))
 
             # Use the relative_path as the storage service space ID
