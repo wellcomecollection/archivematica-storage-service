@@ -71,6 +71,22 @@ def handle_ingest(ingest, package):
         LOGGER.info("Unrecognised package status: %s", status)
 
 
+def mkdir_p(dirpath):
+    """Create a directory, even if it already exists.
+
+    When Archivematica is running exclusively in Python 3, calls to this function
+    can be replaced with ``os.makedirs(dirpath, exist_ok=True)``.
+
+    """
+    try:
+        os.makedirs(dirpath)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(dirpath):
+            pass
+        else:
+            raise
+
+
 class WellcomeStorageService(models.Model):
     space = models.OneToOneField('Space', to_field='uuid')
     token_url = models.URLField(max_length=256, help_text=TOKEN_HELP_TEXT)
@@ -178,13 +194,7 @@ class WellcomeStorageService(models.Model):
         # Ensure the target directory exists. This is where the tarball
         # will be created.
         dest_dir = os.path.dirname(dest_path)
-        try:
-            os.makedirs(dest_dir)
-        except OSError as exc:
-            if exc.errno == errno.EEXIST and os.path.isdir(dest_dir):
-                pass
-            else:
-                raise
+        mkdir_p(dest_dir)
 
         # Possible formats for the path
         #   /space-id/NAME-uuid.tar.gz
