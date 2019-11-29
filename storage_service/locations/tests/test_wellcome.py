@@ -176,6 +176,14 @@ class TestWellcomeMoveFromStorageService(TestCase):
                 package=package
             )
 
+    def test_raises_exception_if_asked_to_upload_non_existent_bag(self):
+        with pytest.raises(models.StorageException, match="is not a file"):
+            self.wellcome_object.move_from_storage_service(
+                src_path="/does-not-exist/bag.zip",
+                dest_path="/born-digital/bag.zip",
+                package=None
+            )
+
 
 class TestWellcomeMoveToStorageService(TestCase):
     fixtures = ['base.json', 'wellcome.json']
