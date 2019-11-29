@@ -169,7 +169,9 @@ class WellcomeStorageService(models.Model):
         LOGGER.debug('Deleting %s from Wellcome storage', delete_path)
 
     def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
-        """ Moves src_path to dest_space.staging_path/dest_path. """
+        """
+        Download an AIP from Wellcome Storage to Archivematica.
+        """
         LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)',
             src_path, dest_path, dest_space)
 
@@ -219,7 +221,9 @@ class WellcomeStorageService(models.Model):
         ], stderr=subprocess.STDOUT)
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
-        """ Moves self.staging_path/src_path to dest_path. """
+        """
+        Upload an AIP from Archivematica to the Wellcome Storage.
+        """
         LOGGER.debug('Moving %s to %s on Wellcome storage', src_path, dest_path)
 
         s3_temporary_path = dest_path.lstrip('/')
