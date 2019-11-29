@@ -2,6 +2,7 @@ import os
 import shutil
 import tempfile
 from StringIO import StringIO
+import uuid
 
 import boto3
 import json
@@ -155,6 +156,45 @@ class TestWellcomeMoveFromStorageService(TestCase):
         assert package.current_path == 'bag-6465da4a-ea88-4300-ac56-9641125f1276.zip'
         assert package.misc_attributes['bag_id'] == 'external-id'
         assert package.misc_attributes['bag_version'] == 'v3'
+
+    @mock.patch("time.sleep")
+    @mock.patch("locations.models.wellcome.StorageServiceClient")
+    def test_tries_fetching_failed_ingest_if_no_callback(
+        self, mock_wellcome_client_class, mock_sleep
+    ):
+        package = models.Package.objects.get(
+            uuid="6465da4a-ea88-4300-ac56-9641125f1276"
+        )
+        path = "locations/fixtures/bag-6465da4a-ea88-4300-ac56-9641125f1276.zip"
+        package.current_path = path
+        package.status = models.Package.STAGING
+        package.save()
+
+        mock_wellcome = mock_wellcome_client_class.return_value
+        mock_wellcome.get_ingest_from_location.return_value = {
+            "id": "ingest-id",
+            "callback": {
+                "status": {"id": str(uuid.uuid4())}
+            },
+            "status": {"id": "failed"},
+            "events": [
+                {"type": "IngestEvent", "description": "Something went wrong"},
+                {"type": "IngestEvent", "description": "Another thing went wrong"},
+            ],
+            "bag": {
+                "info": {"externalIdentifier": str(uuid.uuid4())}
+            },
+        }
+
+        with pytest.raises(models.StorageException, match="Failed to store package"):
+            self.wellcome_object.move_from_storage_service(
+                src_path=os.path.join(FIXTURES_DIR, "small_compressed_bag.zip"),
+                dest_path="/born-digital/bag.zip",
+                package=package
+            )
+
+        package.refresh_from_db()
+        assert package.status == models.Package.FAIL
 
     @mock.patch('time.sleep')
     @mock.patch('locations.models.wellcome.StorageServiceClient')
