@@ -1,20 +1,16 @@
 import errno
+import json
 import logging
 import os
+import subprocess
+import time
 
 import boto3
-import json
-import requests
-import shutil
-import subprocess
-import tarfile
-import tempfile
-import time
 from django.db import models
 from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext_lazy as _
 from django.utils.six.moves.urllib.parse import urljoin, urlencode
-from wellcome_storage_service import StorageServiceClient
+from wellcome_storage_service import BagNotFound, StorageServiceClient
 
 from . import StorageException
 from . import Package
@@ -41,6 +37,7 @@ top_level_dir=sys.argv[3]
 download_compressed_bag(storage_manifest=bag, out_path=dest_path, top_level_dir=top_level_dir)
 '''
 
+
 def handle_ingest(ingest, package):
     """
     Handle an ingest json response
@@ -52,8 +49,7 @@ def handle_ingest(ingest, package):
         # in the format NAME-uuid.tar.gz
         package.current_path = os.path.basename(package.current_path)
         bag_info = ingest['bag']['info']
-        package.misc_attributes['bag_id'] = bag_info['externalIdentifier']
-        package.misc_attributes['bag_version'] = bag_info['version']
+        package.misc_attributes["wellcome.version"] = bag_info["version"]
 
         LOGGER.debug('Package path: %s', package.current_path)
         LOGGER.debug('Package attributes: %s', package.misc_attributes)
@@ -196,24 +192,18 @@ class WellcomeStorageService(models.Model):
         dest_dir = os.path.dirname(dest_path)
         mkdir_p(dest_dir)
 
-        # Possible formats for the path
-        #   /space-id/NAME-uuid.tar.gz
-        #   /space-id/u/u/i/d/NAME-uuid-tar.gz (this happens on reingest)
-        components = src_path.lstrip('/').split('/')
-        space_id, source = components[0], components[-1]
-        filename, ext = source.split('.', 1)
-        name, source_id = filename.split('-', 1)
+        assert package is not None
 
-        # Request a specific bag version if the package has one
-        bag_kwargs = {
-            'space_id': space_id,
-            'source_id': source_id,
-        }
-        if package and 'bag_version' in package.misc_attributes:
-            bag_kwargs['version'] = package.misc_attributes['bag_version']
+        space_id = package.misc_attributes["wellcome.space"]
+        source_id = package.misc_attributes["wellcome.identifier"]
+        version = package.misc_attributes.get("wellcome.version")
 
         # Look up the bag details by UUID
-        bag = self.wellcome_client.get_bag(**bag_kwargs)
+        bag = self.wellcome_client.get_bag(
+            space_id=space_id,
+            source_id=source_id,
+            version=version
+        )
 
         # We use a subprocess here because the compression of the download
         # is CPU-intensive, especially for larger files, and can render the
@@ -239,87 +229,134 @@ class WellcomeStorageService(models.Model):
         s3_temporary_path = dest_path.lstrip('/')
         bucket = self.s3_resource.Bucket(self.s3_bucket)
 
-        if os.path.isfile(src_path):
-            # Upload to s3
-            with open(src_path, 'rb') as data:
+        # The Wellcome Storage reads packages out of S3, so we need to
+        # upload the AIP to S3 before asking the WS to ingest it.
+        try:
+            with open(src_path, "rb") as data:
                 bucket.upload_fileobj(data, s3_temporary_path)
-
-            wellcome = self.wellcome_client
-
-            callback_url = urljoin(
-                self.callback_host,
-                '%s?%s' % (
-                    reverse('wellcome_callback', args=['v2', 'file', package.uuid]),
-                    urlencode([
-                        ("username", self.callback_username),
-                        ("api_key", self.callback_api_key),
-                    ])
-                ))
-
-            # Use the relative_path as the storage service space ID
-            location = package.current_location
-            space_id = location.relative_path.strip(os.path.sep)
-
-            # For reingests, the package status will still be 'uploaded'
-            # We use the status to detect when upload is complete,
-            # so it is explicitly reset here.
-            package.status = Package.STAGING
-            package.save()
-
-            # Either create or update a bag on the storage service
-            # https://github.com/wellcometrust/platform/tree/master/docs/rfcs/002-archival_storage#updating-an-existing-bag
-            is_reingest = 'bag_id' in package.misc_attributes
-            LOGGER.info('Callback will be to %s', callback_url)
-            location = wellcome.create_s3_ingest(
-                space_id=space_id,
-                s3_key=s3_temporary_path,
-                s3_bucket=self.s3_bucket,
-                callback_url=callback_url,
-                external_identifier=package.uuid,
-                ingest_type="update" if is_reingest else "create",
-            )
-            LOGGER.info('Ingest_location: %s', location)
-
-            LOGGER.debug('Package status %s', package.status)
-            while package.status == Package.STAGING:
-                # Wait for callback to have been called
-                for i in range(6):
-                    package.refresh_from_db()
-                    LOGGER.debug('Package status %s', package.status)
-                    time.sleep(10)
-                    if package.status != Package.STAGING:
-                        break
-
-                if package.status == Package.STAGING:
-                    LOGGER.info("Callback wasn't called yet - let's check the ingest URL")
-
-                    # It wasn't. Query the ingest URL to see if anything happened.
-                    # It's possible we missed the callback (e.g. Archivematica was unavailable?)
-                    # because the storage service won't retry.
-                    ingest = wellcome.get_ingest_from_location(location)
-                    if ingest['callback']['status']['id'] == 'processing':
-                        # Just keep waiting for the callback
-                        LOGGER.info("Still waiting for callback")
-                    else:
-                        # We missed the callback. Take results from the ingest body
-                        LOGGER.info("Ingest result found")
-                        handle_ingest(ingest, package)
-
-            if package.status == Package.FAIL:
-                raise StorageException(
-                    _("Failed to store package %(path)s") %
-                    {'path': src_path})
-
-        else:
+        except Exception as err:
+            LOGGER.warn("Error uploading %s to S3: %r", src_path, err)
             raise StorageException(
                 _('%(path)s is not a file, may be a directory or not exist') %
                 {'path': src_path})
 
+        # The src_path to the package is typically a string of the form
+        #
+        #     /u/u/i/d/{sip_name}-{uuid}.tar.gz
+        #
+        # The {sip_name} is a human-readable identifier -- if we can use that,
+        # it better corresponds to the catalogue records.
+        #
+        # See if we can extract it, and if not, fall back to the UUID.
+        src_filename = os.path.basename(src_path)
+        src_name, _ = os.path.splitext(src_filename)
+
+        if src_name.endswith("-%s" % package.uuid):
+            wellcome_identifier = src_name[:-len("-%s" % package.uuid)]
+        else:
+            wellcome_identifier = package.uuid
+
+        # Use the relative_path as the storage service space ID
+        location = package.current_location
+        space_id = location.relative_path.strip(os.path.sep)
+
+        # We don't know if other packages have been ingested to the
+        # Wellcome Storage for this identifier -- query for existing bags,
+        # and select an ingest type appropriately.
+        if wellcome_identifier == package.uuid:
+            ingest_type = "create"
+        else:
+            try:
+                self.wellcome_client.get_bag(
+                    space_id=space_id,
+                    source_id=wellcome_identifier
+                )
+            except BagNotFound:
+                ingest_type = "create"
+            else:
+                ingest_type = "update"
+
+        # Construct a callback URL that the storage service can use to
+        # notify Archivematica of a completed ingest.
+        # TODO: Don't embed raw API credentials.
+        # See https://github.com/wellcometrust/platform/issues/3534
+        callback_url = urljoin(
+            self.callback_host,
+            '%s?%s' % (
+                reverse('wellcome_callback', args=['v2', 'file', package.uuid]),
+                urlencode([
+                    ("username", self.callback_username),
+                    ("api_key", self.callback_api_key),
+                ])
+            ))
+
+        # Record the attributes on the package, so we can use them to
+        # retrieve a bag later.
+        package.misc_attributes["wellcome.identifier"] = wellcome_identifier
+        package.misc_attributes["wellcome.space"] = space_id
+
+        LOGGER.info(
+            "Uploading to Wellcome Storage with external identifier %s, space %s, ingest type %s",
+            wellcome_identifier, space_id, ingest_type
+        )
+
+        # For reingests, the package status will still be 'uploaded'
+        # We use the status to detect when upload is complete,
+        # so it is explicitly reset here.
+        package.status = Package.STAGING
+        package.save()
+
+        # Either create or update a bag on the storage service
+        # https://github.com/wellcometrust/platform/tree/master/docs/rfcs/002-archival_storage#updating-an-existing-bag
+        LOGGER.info('Callback will be to %s', callback_url)
+        location = self.wellcome_client.create_s3_ingest(
+            space_id=space_id,
+            s3_key=s3_temporary_path,
+            s3_bucket=self.s3_bucket,
+            callback_url=callback_url,
+            external_identifier=wellcome_identifier,
+            ingest_type=ingest_type,
+        )
+        LOGGER.info('Ingest_location: %s', location)
+
+        LOGGER.debug('Package status %s', package.status)
+        while package.status == Package.STAGING:
+            # Wait for callback to have been called
+            for i in range(6):
+                package.refresh_from_db()
+                LOGGER.debug('Package status %s', package.status)
+                time.sleep(10)
+                if package.status != Package.STAGING:
+                    break
+
+            if package.status == Package.STAGING:
+                LOGGER.info("Callback wasn't called yet - let's check the ingest URL")
+
+                # It wasn't. Query the ingest URL to see if anything happened.
+                # It's possible we missed the callback (e.g. Archivematica was unavailable?)
+                # because the storage service won't retry.
+                ingest = self.wellcome_client.get_ingest_from_location(location)
+                if ingest['callback']['status']['id'] == 'processing':
+                    # Just keep waiting for the callback
+                    LOGGER.info("Still waiting for callback")
+                else:
+                    # We missed the callback. Take results from the ingest body
+                    LOGGER.info("Ingest result found")
+                    handle_ingest(ingest, package)
+
+        if package.status == Package.FAIL:
+            raise StorageException(
+                _("Failed to store package %(path)s") %
+                {'path': src_path})
+
+<<<<<<< HEAD
 
     class Meta:
+=======
+    class Meta(S3SpaceModelMixin.Meta):
+>>>>>>> 9ebb57a... Try using human-readable IDs
         verbose_name = _("Wellcome Storage Service")
         app_label = 'locations'
-
 
     ALLOWED_LOCATION_PURPOSE = [
         Location.AIP_STORAGE,
