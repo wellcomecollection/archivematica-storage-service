@@ -185,9 +185,9 @@ class WellcomeStorageService(S3SpaceModelMixin):
         #
         # See if we can extract it, and if not, fall back to the UUID.
         src_filename = os.path.basename(src_path)
-        src_name, _ = os.path.splitext(src_filename)
+        src_name = src_filename.split(".")[0]
 
-        if src_name.endswith("-%s" % package.uuid):
+        if src_name:
             wellcome_identifier = src_name[:-len("-%s" % package.uuid)]
         else:
             wellcome_identifier = package.uuid
