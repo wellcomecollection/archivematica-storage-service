@@ -347,17 +347,6 @@ class WellcomeStorageService(models.Model):
         s3_temporary_path = dest_path.lstrip('/')
         bucket = self.s3_resource.Bucket(self.s3_bucket)
 
-        # The Wellcome Storage reads packages out of S3, so we need to
-        # upload the AIP to S3 before asking the WS to ingest it.
-        try:
-            with open(src_path, "rb") as data:
-                bucket.upload_fileobj(data, s3_temporary_path)
-        except Exception as err:
-            LOGGER.warn("Error uploading %s to S3: %r", src_path, err)
-            raise StorageException(
-                _('%(path)s is not a file, may be a directory or not exist') %
-                {'path': src_path})
-
         # The src_path to the package is typically a string of the form
         #
         #     /u/u/i/d/{sip_name}-{uuid}.tar.gz
@@ -373,6 +362,20 @@ class WellcomeStorageService(models.Model):
             src_path=src_path,
             default_identifier=package.uuid
         )
+
+        # The Wellcome Storage reads packages out of S3, so we need to
+        # upload the AIP to S3 before asking the WS to ingest it.
+        #
+        # We have to upload to S3 *after* calling get_wellcome_identifier,
+        # because that might modify the External-Identifier in the bag-info.txt.
+        try:
+            with open(src_path, "rb") as data:
+                bucket.upload_fileobj(data, s3_temporary_path)
+        except Exception as err:
+            LOGGER.warn("Error uploading %s to S3: %r", src_path, err)
+            raise StorageException(
+                _('%(path)s is not a file, may be a directory or not exist') %
+                {'path': src_path})
 
         # Use the relative_path as the storage service space ID
         location = package.current_location
