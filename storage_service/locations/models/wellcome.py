@@ -1,10 +1,14 @@
+import csv
 import errno
 import json
 import logging
 import os
+import re
 import subprocess
+import tempfile
 import time
 
+import bagit
 import boto3
 from django.db import models
 from django.core.urlresolvers import reverse
@@ -81,6 +85,119 @@ def mkdir_p(dirpath):
             pass
         else:
             raise
+
+
+def get_wellcome_identifier(src_path, default_identifier):
+    """
+    By default, Archivematica will use the UUID as the External-Identifier
+    when calling the Wellcome Storage.
+
+    This is somewhat unpleasant -- if you're browsing the storage without
+    Archivematica references, it's hard to know where to find a given archive.
+    For example, if you're looking for PPMIA/1/2, what UUID is that?
+
+    If all the objects in the bag have a common value in the dc.identifier field,
+    which should be a catalogue reference, use that in preference to the
+    Archivematica external identifier.
+
+    """
+    LOGGER.debug("Trying to find Wellcome identifier in %s", src_path)
+
+    # If we're not looking at a tar.gz compressed bag, stop.
+    if not src_path.endswith(".tar.gz"):
+        return default_identifier
+
+    # Unpack the tar.gz to a temporary directory.  We run tar in a subprocess
+    # because it's CPU intensive and we don't want to hang the main Archivematica
+    # thread.
+    temp_dir = tempfile.mkdtemp()
+    try:
+        subprocess.check_call(["tar", "-xzf", src_path, "-C", temp_dir])
+    except subprocess.CalledProcessError as err:
+        LOGGER.debug("Error uncompressing tar.gz bag: %r", err)
+        return default_identifier
+
+    # There should be a single directory in the temporary directory -- the
+    # uncompressed bag.
+    if len(os.listdir(temp_dir)) != 1:
+        LOGGER.debug(
+            "Unable to identify root of bag in: os.listdir(%r) = %r",
+            temp_dir, os.listdir(temp_dir)
+        )
+        return default_identifier
+
+    # Inside the bag, we look for the metadata.csv file that contains the
+    # dc.identifier values.  If we can't identify that file unambiguously,
+    # fall back to the UUID.
+    bag_dir = os.listdir(temp_dir)[0]
+    LOGGER.debug("Expanded bag into directory %s" % bag_dir)
+    bag = bagit.Bag(bag_dir)
+
+    manifest_csvs = [
+        name
+        for name in bag.payload_files()
+        if name.endswith("/metadata.csv")
+    ]
+
+    if len(manifest_csvs) != 1:
+        LOGGER.debug("Unable to find metadata.csv in bag: %r" % manifest_csvs)
+        return default_identifier
+
+    # Now we know we can unpack the bag, and we've found the metadata.csv
+    # file.  Open it, and pick out all the dc.identifier values.
+    full_metadata_path = os.path.join(bag_dir, manifest_csvs[0])
+
+    identifiers = []
+    with open(full_metadata_path) as csvfile:
+        reader = csv.DictReader(csvfile)
+
+        for row in reader:
+            if row.get("dc.identifier"):
+                identifiers.append(row["dc.identifier"])
+
+    # Do the dc.identifier values have a common prefix?  If so, we can use
+    # that as the external identifier.
+    if not identifiers:
+        LOGGER.debug("Unable to find any dc.identifier values in metadata.csv")
+        return default_identifier
+
+    # The prefix may contain slashes, which are kinda awkward.  Replace them
+    # with underscores.  Collapse multiple underscores into one.
+    prefix = os.path.commonprefix(identifiers)
+    wellcome_identifier = prefix.replace("/", "_").strip("_")
+    wellcome_identifier = re.sub(r"_+", "_")
+
+    if not prefix:
+        LOGGER.debug("No common prefix among dc.identifier values in metadata.csv")
+        return default_identifier
+
+    # At this point, we've found a common prefix, it's non-empty and it's
+    # filesystem safe.  Write it back into the bag, then compress the bag
+    # back up under the original path.  Remember to rebuild the manifests.
+    bag.info["External-Identifier"] = wellcome_identifier
+    bag.save(manifests=True)
+    LOGGER.debug("Detected Wellcome identifier as %s" % wellcome_identifier)
+
+    # Recompress the bag.  We write it to a temporary path first, so if we
+    # corrupt something, the original tar.gz is preserved.
+    try:
+        subprocess.check_call([
+            "tar",
+
+            # Compress to /src_path.tmp using gzip compression (-z)
+            "-czvf", src_path + ".tmp",
+
+            # cd into temp_dir first, then compress everything it contains.
+            # This means all the files in the tar.gz are relative, not
+            # absolute paths to /tmp/...
+            "-C", temp_dir, "."
+        ])
+    except subprocess.CalledProcessError as err:
+        LOGGER.debug("Error repacking bag as tar.gz: %r" % err)
+
+    # This rename should be atomic.
+    os.rename(src_path + ".tmp", src_path)
+    return wellcome_identifier
 
 
 class WellcomeStorageService(models.Model):
@@ -249,12 +366,12 @@ class WellcomeStorageService(models.Model):
         #
         # See if we can extract it, and if not, fall back to the UUID.
         src_filename = os.path.basename(src_path)
-        src_name = src_filename.split(".")[0]
+        src_name, _ = os.path.splitext(src_filename)
 
-        if src_name:
-            wellcome_identifier = src_name[:-len("-%s" % package.uuid)]
-        else:
-            wellcome_identifier = package.uuid
+        wellcome_identifier = get_wellcome_identifier(
+            src_path=src_path,
+            default_identifier=package.uuid
+        )
 
         # Use the relative_path as the storage service space ID
         location = package.current_location
@@ -349,12 +466,7 @@ class WellcomeStorageService(models.Model):
                 _("Failed to store package %(path)s") %
                 {'path': src_path})
 
-<<<<<<< HEAD
-
     class Meta:
-=======
-    class Meta(S3SpaceModelMixin.Meta):
->>>>>>> 9ebb57a... Try using human-readable IDs
         verbose_name = _("Wellcome Storage Service")
         app_label = 'locations'
 
