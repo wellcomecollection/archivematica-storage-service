@@ -129,7 +129,8 @@ def get_wellcome_identifier(src_path, default_identifier):
     # Inside the bag, we look for the metadata.csv file that contains the
     # dc.identifier values.  If we can't identify that file unambiguously,
     # fall back to the UUID.
-    bag_dir = os.listdir(temp_dir)[0]
+    bag_dir = os.path.join(temp_dir, os.listdir(temp_dir)[0])
+    assert os.path.exists(bag_dir)
     LOGGER.debug("Expanded bag into directory %s" % bag_dir)
     bag = bagit.Bag(bag_dir)
 
@@ -165,7 +166,7 @@ def get_wellcome_identifier(src_path, default_identifier):
     # with underscores.  Collapse multiple underscores into one.
     prefix = os.path.commonprefix(identifiers)
     wellcome_identifier = prefix.replace("/", "_").strip("_")
-    wellcome_identifier = re.sub(r"_+", "_")
+    wellcome_identifier = re.sub(r"_+", "_", wellcome_identifier)
 
     if not prefix:
         LOGGER.debug("No common prefix among dc.identifier values in metadata.csv")
