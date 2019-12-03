@@ -1,7 +1,9 @@
 import os
+import random
 import shutil
 import tempfile
 from StringIO import StringIO
+import uuid
 
 import boto3
 import json
@@ -16,6 +18,29 @@ from locations import models
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
 FIXTURES_DIR = os.path.abspath(os.path.join(THIS_DIR, '..', 'fixtures'))
+
+
+def create_storage_service_response(status):
+    resp = {
+        "id": str(uuid.uuid4()),
+        "callback": {
+            "status": {"id": status}
+        },
+        "status": {"id": status},
+        "events": [
+            {"type": "IngestEvent", "description": "Something happened"},
+            {"type": "IngestEvent", "description": "Something else happened"},
+        ],
+        "bag": {
+            "info": {"externalIdentifier": str(uuid.uuid4())}
+        },
+    }
+
+    if status == "succeeded":
+        version = random.randint(1, 100)
+        resp["bag"]["info"]["version"] = "v%d" % version
+
+    return resp
 
 
 @mock_s3
@@ -125,24 +150,12 @@ class TestWellcomeMoveFromStorageService(TestCase):
         package.status = models.Package.STAGING
         package.save()
 
+        storage_service_response = create_storage_service_response(status="succeeded")
+        storage_service_response["bag"]["info"]["externalIdentifier"] = "external-id"
+        storage_service_response["bag"]["info"]["version"] = "v3"
+
         mock_wellcome = mock_wellcome_client_class.return_value
-        mock_wellcome.get_ingest_from_location.return_value = {
-            'id': 'ingest-id',
-            'callback': {
-                'status': {
-                    'id': 'succeeded',
-                }
-            },
-            'status': {
-                'id': 'succeeded',
-            },
-            'bag': {
-                'info': {
-                    'externalIdentifier': 'external-id',
-                    'version': 'v3',
-                }
-            },
-        }
+        mock_wellcome.get_ingest_from_location.return_value = storage_service_response
 
         self.wellcome_object.move_from_storage_service(
             os.path.join(FIXTURES_DIR, 'small_compressed_bag.zip'),
@@ -155,6 +168,65 @@ class TestWellcomeMoveFromStorageService(TestCase):
         assert package.current_path == 'bag-6465da4a-ea88-4300-ac56-9641125f1276.zip'
         assert package.misc_attributes['bag_id'] == 'external-id'
         assert package.misc_attributes['bag_version'] == 'v3'
+
+    @mock.patch("time.sleep")
+    @mock.patch("locations.models.wellcome.StorageServiceClient")
+    def test_tries_fetching_failed_ingest_if_no_callback(
+        self, mock_wellcome_client_class, mock_sleep
+    ):
+        package = models.Package.objects.get(
+            uuid="6465da4a-ea88-4300-ac56-9641125f1276"
+        )
+        path = "locations/fixtures/bag-6465da4a-ea88-4300-ac56-9641125f1276.zip"
+        package.current_path = path
+        package.status = models.Package.STAGING
+        package.save()
+
+        storage_service_response = create_storage_service_response(status="failed")
+        mock_wellcome = mock_wellcome_client_class.return_value
+        mock_wellcome.get_ingest_from_location.return_value = storage_service_response
+
+        with pytest.raises(models.StorageException, match="Failed to store package"):
+            self.wellcome_object.move_from_storage_service(
+                src_path=os.path.join(FIXTURES_DIR, "small_compressed_bag.zip"),
+                dest_path="/born-digital/bag.zip",
+                package=package
+            )
+
+        package.refresh_from_db()
+        assert package.status == models.Package.FAIL
+
+    @mock.patch("time.sleep")
+    @mock.patch("locations.models.wellcome.StorageServiceClient")
+    def test_tries_fetching_unknown_ingest_if_no_callback(
+        self, mock_wellcome_client_class, mock_sleep
+    ):
+        package = models.Package.objects.get(
+            uuid="6465da4a-ea88-4300-ac56-9641125f1276"
+        )
+        path = "locations/fixtures/bag-6465da4a-ea88-4300-ac56-9641125f1276.zip"
+        package.current_path = path
+        package.status = models.Package.STAGING
+        package.save()
+
+        mock_wellcome = mock_wellcome_client_class.return_value
+
+        # This mimics the case where Archivematica gets an unknown status
+        # from the Wellcome Storage, then later asks again and gets
+        # a "succeeded" ingest.
+        mock_wellcome.get_ingest_from_location.side_effect = [
+            create_storage_service_response(status="unknown"),
+            create_storage_service_response(status="succeeded"),
+        ]
+
+        self.wellcome_object.move_from_storage_service(
+            src_path=os.path.join(FIXTURES_DIR, "small_compressed_bag.zip"),
+            dest_path="/born-digital/bag.zip",
+            package=package
+        )
+
+        package.refresh_from_db()
+        assert package.status == models.Package.UPLOADED
 
     @mock.patch('time.sleep')
     @mock.patch('locations.models.wellcome.StorageServiceClient')
@@ -174,6 +246,14 @@ class TestWellcomeMoveFromStorageService(TestCase):
                 os.path.join(FIXTURES_DIR, 'small_compressed_bag.zip'),
                 '/born-digital/bag.zip',
                 package=package
+            )
+
+    def test_raises_exception_if_asked_to_upload_non_existent_bag(self):
+        with pytest.raises(models.StorageException, match="is not a file"):
+            self.wellcome_object.move_from_storage_service(
+                src_path="/does-not-exist/bag.zip",
+                dest_path="/born-digital/bag.zip",
+                package=None
             )
 
 

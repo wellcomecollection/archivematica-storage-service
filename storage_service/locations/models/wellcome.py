@@ -72,6 +72,22 @@ def handle_ingest(ingest, package):
         LOGGER.info("Unrecognised package status: %s", status)
 
 
+def mkdir_p(dirpath):
+    """Create a directory, even if it already exists.
+
+    When Archivematica is running exclusively in Python 3, calls to this function
+    can be replaced with ``os.makedirs(dirpath, exist_ok=True)``.
+
+    """
+    try:
+        os.makedirs(dirpath)
+    except OSError as exc:
+        if exc.errno == errno.EEXIST and os.path.isdir(dirpath):
+            pass
+        else:
+            raise
+
+
 class WellcomeStorageService(S3SpaceModelMixin):
     space = models.OneToOneField('Space', to_field='uuid')
     token_url = models.URLField(max_length=256, help_text=TOKEN_HELP_TEXT)
@@ -106,20 +122,16 @@ class WellcomeStorageService(S3SpaceModelMixin):
         LOGGER.debug('Deleting %s from Wellcome storage', delete_path)
 
     def move_to_storage_service(self, src_path, dest_path, dest_space, package=None):
-        """ Moves src_path to dest_space.staging_path/dest_path. """
+        """
+        Download an AIP from Wellcome Storage to Archivematica.
+        """
         LOGGER.debug('Fetching %s on Wellcome storage to %s (space %s)',
             src_path, dest_path, dest_space)
 
         # Ensure the target directory exists. This is where the tarball
         # will be created.
         dest_dir = os.path.dirname(dest_path)
-        try:
-            os.makedirs(dest_dir)
-        except OSError as exc:
-            if exc.errno == errno.EEXIST and os.path.isdir(dest_dir):
-                pass
-            else:
-                raise
+        mkdir_p(dest_dir)
 
         # Possible formats for the path
         #   /space-id/NAME-uuid.tar.gz
@@ -156,7 +168,9 @@ class WellcomeStorageService(S3SpaceModelMixin):
         ], stderr=subprocess.STDOUT)
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
-        """ Moves self.staging_path/src_path to dest_path. """
+        """
+        Upload an AIP from Archivematica to the Wellcome Storage.
+        """
         LOGGER.debug('Moving %s to %s on Wellcome storage', src_path, dest_path)
 
         s3_temporary_path = dest_path.lstrip('/')
@@ -173,10 +187,10 @@ class WellcomeStorageService(S3SpaceModelMixin):
                 self.callback_host,
                 '%s?%s' % (
                     reverse('wellcome_callback', args=['v2', 'file', package.uuid]),
-                    urlencode({
-                        'username': self.callback_username,
-                        'api_key': self.callback_api_key,
-                    })
+                    urlencode([
+                        ("username", self.callback_username),
+                        ("api_key", self.callback_api_key),
+                    ])
                 ))
 
             # Use the relative_path as the storage service space ID
