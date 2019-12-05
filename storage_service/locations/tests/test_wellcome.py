@@ -44,19 +44,27 @@ def create_storage_service_response(status):
 
 
 @mock_s3
-class TestWellcomeMoveFromStorageService(TestCase):
+class WellcomeTestBase(TestCase):
 
-    fixtures = ['base.json', 'wellcome.json']
+    fixtures = ["base.json", "wellcome.json"]
 
     def setUp(self):
         self.wellcome_object = models.WellcomeStorageService.objects.get(id=1)
 
-        self._s3 = boto3.client("s3", region_name='us-east-1')
+        self._s3 = boto3.client("s3", region_name="us-east-1")
         self._s3.create_bucket(Bucket=self.wellcome_object.s3_bucket)
 
-    @staticmethod
-    def get_package():
-        package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
+        self.tmp_dir = tempfile.mkdtemp()
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp_dir)
+
+    @property
+    def package_uuid(self):
+        return "6465da4a-ea88-4300-ac56-9641125f1276"
+
+    def get_package(self):
+        package = models.Package.objects.get(uuid=self.package_uuid)
         # Simulate the callback
         def set_package_to_uploaded(*args):
             package.status = models.Package.UPLOADED
@@ -64,6 +72,8 @@ class TestWellcomeMoveFromStorageService(TestCase):
         package.refresh_from_db = mock.Mock(side_effect=set_package_to_uploaded)
         return package
 
+
+class TestWellcomeMoveFromStorageService(WellcomeTestBase):
     @mock.patch('time.sleep')
     @mock.patch('locations.models.wellcome.StorageServiceClient')
     def test_uploads_bag_to_s3_bucket(self, mock_wellcome_client_class, mock_sleep):
@@ -127,7 +137,7 @@ class TestWellcomeMoveFromStorageService(TestCase):
             s3_bucket=self.wellcome_object.s3_bucket,
             callback_url='https://test.localhost/api/v2/file/6465da4a-ea88-4300-ac56-9641125f1276/wellcome_callback/?username=username&api_key=api_key',
             external_identifier=package.uuid,
-            ingest_type='update',
+            ingest_type='create',
         )
 
     @mock.patch('time.sleep')
@@ -166,8 +176,8 @@ class TestWellcomeMoveFromStorageService(TestCase):
         package.refresh_from_db()
         assert package.status == models.Package.UPLOADED
         assert package.current_path == 'bag-6465da4a-ea88-4300-ac56-9641125f1276.zip'
-        assert package.misc_attributes['bag_id'] == 'external-id'
-        assert package.misc_attributes['bag_version'] == 'v3'
+        assert package.misc_attributes['wellcome.identifier'] == "6465da4a-ea88-4300-ac56-9641125f1276"
+        assert package.misc_attributes['wellcome.version'] == 'v3'
 
     @mock.patch("time.sleep")
     @mock.patch("locations.models.wellcome.StorageServiceClient")
@@ -257,25 +267,17 @@ class TestWellcomeMoveFromStorageService(TestCase):
             )
 
 
-class TestWellcomeMoveToStorageService(TestCase):
-    fixtures = ['base.json', 'wellcome.json']
-
-    def setUp(self):
-        self.wellcome_object = models.WellcomeStorageService.objects.get(id=1)
-
-        self._s3 = boto3.client("s3", region_name='us-east-1')
-        self.tmp_dir = tempfile.mkdtemp()
-
-    def tearDown(self):
-        shutil.rmtree(self.tmp_dir)
-
+class TestWellcomeMoveToStorageService(WellcomeTestBase):
 
     @mock_s3
     @mock.patch('locations.models.wellcome.StorageServiceClient')
     @mock.patch('subprocess.check_call')
     def test_copies_files_from_ia_provider(self, mock_call, mock_wellcome_client_class):
-        package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
-        package.misc_attributes['bag_version'] = 'v3'
+        package = self.get_package()
+        package.misc_attributes["wellcome.version"] = "v3"
+        package.misc_attributes["wellcome.space"] = "name-of-space"
+        package.misc_attributes["wellcome.identifier"] = "bag-id"
+
         self._s3.create_bucket(Bucket='ia-bucket')
         self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v3/data/file1')
 
@@ -328,8 +330,11 @@ class TestWellcomeMoveToStorageService(TestCase):
     @mock.patch('locations.models.wellcome.StorageServiceClient')
     @mock.patch('subprocess.check_call')
     def test_supports_path_containing_uuid(self, mock_call, mock_wellcome_client_class):
-        package = models.Package.objects.get(uuid="6465da4a-ea88-4300-ac56-9641125f1276")
-        package.misc_attributes['bag_version'] = 'v3'
+        package = self.get_package()
+        package.misc_attributes["wellcome.version"] = "v3"
+        package.misc_attributes["wellcome.space"] = "name-of-space"
+        package.misc_attributes["wellcome.identifier"] = "bag-id"
+
         self._s3.create_bucket(Bucket='ia-bucket')
         self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v3/data/file1')
 
@@ -368,3 +373,6 @@ class TestWellcomeMoveToStorageService(TestCase):
         )
 
         mock_wellcome.get_bag.assert_called_with(space_id='name-of-space', source_id='bag-id', version='v3')
+
+
+# TODO: It would be nice to have some end-to-end tests for this functionality.

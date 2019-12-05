@@ -1923,7 +1923,10 @@ class PackageResource(ModelResource):
 
     @_custom_endpoint(expected_methods=['post'])
     def wellcome_callback(self, request, bundle, **kwargs):
-        LOGGER.debug("wellcome package callback")
+        LOGGER.debug(
+            "Received a callback from the Wellcome Storage Service: "
+            "request=%r, bundle=%r", request, bundle
+        )
         try:
             package = Package.objects.get(uuid=kwargs['uuid'])
         except Package.DoesNotExist:
