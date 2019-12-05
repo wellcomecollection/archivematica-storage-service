@@ -162,12 +162,6 @@ def get_wellcome_identifier(src_path, default_identifier):
         LOGGER.debug("Unable to find any dc.identifier values in metadata.csv")
         return default_identifier
 
-    # The prefix may contain slashes, which are kinda awkward.  Replace them
-    # with underscores.  Collapse multiple underscores into one.
-    prefix = os.path.commonprefix(identifiers)
-    wellcome_identifier = prefix.replace("/", "_").strip("_")
-    wellcome_identifier = re.sub(r"_+", "_", wellcome_identifier)
-
     if not prefix:
         LOGGER.debug("No common prefix among dc.identifier values in metadata.csv")
         return default_identifier
@@ -323,6 +317,9 @@ class WellcomeStorageService(models.Model):
             version=version
         )
 
+        src_filename = os.path.basename(src_path)
+        src_name, _ = src_filename.split(".", 1)
+
         # We use a subprocess here because the compression of the download
         # is CPU-intensive, especially for larger files, and can render the
         # main process unresponsive. This can cause problems (a) for server
@@ -335,7 +332,7 @@ class WellcomeStorageService(models.Model):
             '-c', DOWNLOAD_BAG_SCRIPT,
             json.dumps(bag),
             dest_path,
-            filename,
+            src_name,
         ], stderr=subprocess.STDOUT)
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
@@ -356,7 +353,7 @@ class WellcomeStorageService(models.Model):
         #
         # See if we can extract it, and if not, fall back to the UUID.
         src_filename = os.path.basename(src_path)
-        src_name, _ = os.path.splitext(src_filename)
+        src_name, __ = os.path.splitext(src_filename)
 
         wellcome_identifier = get_wellcome_identifier(
             src_path=src_path,
@@ -440,12 +437,12 @@ class WellcomeStorageService(models.Model):
         )
         LOGGER.info('Ingest_location: %s', location)
 
-        LOGGER.debug('Package status %s', package.status)
+        LOGGER.debug('Current package status is %s', package.status)
         while package.status == Package.STAGING:
             # Wait for callback to have been called
             for i in range(6):
                 package.refresh_from_db()
-                LOGGER.debug('Package status %s', package.status)
+                LOGGER.debug('Polled package; status is %s', package.status)
                 time.sleep(10)
                 if package.status != Package.STAGING:
                     break
