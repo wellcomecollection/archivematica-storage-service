@@ -4,7 +4,6 @@ import csv
 import errno
 import os
 import json
-import re
 import subprocess
 import tempfile
 import time
@@ -163,9 +162,13 @@ def get_wellcome_identifier(src_path, default_identifier):
         LOGGER.debug("Unable to find any dc.identifier values in metadata.csv")
         return default_identifier
 
-    if not prefix:
+    common_prefix = os.path.commonprefix(identifiers)
+
+    if not common_prefix:
         LOGGER.debug("No common prefix among dc.identifier values in metadata.csv")
         return default_identifier
+
+    wellcome_identifier = common_prefix
 
     # At this point, we've found a common prefix, it's non-empty and it's
     # filesystem safe.  Write it back into the bag, then compress the bag
