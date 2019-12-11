@@ -7,6 +7,7 @@ import uuid
 
 import boto3
 import json
+from lxml import etree
 import mock
 import pytest
 import subprocess
@@ -14,6 +15,12 @@ from django.test import TestCase
 from moto import mock_s3
 
 from locations import models
+from locations.models.wellcome import (
+    extract_accession_identifiers,
+    extract_dc_identifiers,
+    get_common_prefix,
+    NoCommonPrefix,
+)
 
 
 THIS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -368,3 +375,170 @@ class TestWellcomeMoveToStorageService(WellcomeTestBase):
 
 
 # TODO: It would be nice to have some end-to-end tests for this functionality.
+
+
+@pytest.mark.parametrize("identifiers, common_prefix", [
+    (["AP/PLE/1"], "AP/PLE/1"),
+    (["AP/PLE/1", "AP/PLE/1"], "AP/PLE/1"),
+    (["A/B/C", "A/B/D"], "A/B"),
+
+    # Doesn't end with a slash
+    (["A/"], "A"),
+])
+def test_get_common_prefix(identifiers, common_prefix):
+    assert get_common_prefix(identifiers) == common_prefix
+
+
+@pytest.mark.parametrize("identifiers", [
+    ["A", "B"],
+    ["AA/1", "AB/1"],
+])
+def test_no_common_prefix_is_exception(identifiers):
+    with pytest.raises(NoCommonPrefix):
+        get_common_prefix(identifiers)
+
+
+@pytest.mark.parametrize("mets_xml, expected_identifiers", [
+    # Basic example
+    (
+        b"""
+        <?xml version='1.0' encoding='UTF-8'?>
+        <mets:mets xmlns:mets="http://www.loc.gov/METS/">
+          <mets:metsHdr CREATEDATE="2019-12-11T11:34:08"/>
+          <mets:dmdSec ID="dmdSec_2">
+            <mets:mdWrap MDTYPE="DC">
+              <mets:xmlData>
+                <dcterms:dublincore xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+                  <dc:identifier>PEACH/ALEX/1</dc:identifier>
+                </dcterms:dublincore>
+              </mets:xmlData>
+            </mets:mdWrap>
+          </mets:dmdSec>
+        </mets:mets>
+        """,
+        ["PEACH/ALEX/1"]
+    ),
+
+    # It ignores other Dublin Core headers
+    (
+        b"""
+        <?xml version='1.0' encoding='UTF-8'?>
+        <mets:mets xmlns:mets="http://www.loc.gov/METS/">
+          <mets:metsHdr CREATEDATE="2019-12-11T11:34:08"/>
+          <mets:dmdSec ID="dmdSec_2">
+            <mets:mdWrap MDTYPE="DC">
+              <mets:xmlData>
+                <dcterms:dublincore xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+                  <dc:identifier>ORANGE/LEXIE/1</dc:identifier>
+                  <dc:title>My great METS file</dc:title>
+                  <dc:date>2019-12-11</dc:date>
+                </dcterms:dublincore>
+              </mets:xmlData>
+            </mets:mdWrap>
+          </mets:dmdSec>
+        </mets:mets>
+        """,
+        ["ORANGE/LEXIE/1"]
+    ),
+
+    # It finds multiple instances of the same identifier (although I've
+    # never seen this in a METS file produced by Archivematica -- possibly
+    # this occurs if you supply per-file identifiers?)
+    (
+        b"""
+        <?xml version='1.0' encoding='UTF-8'?>
+        <mets:mets xmlns:mets="http://www.loc.gov/METS/">
+          <mets:metsHdr CREATEDATE="2019-12-11T11:34:08"/>
+          <mets:dmdSec ID="dmdSec_2">
+            <mets:mdWrap MDTYPE="DC">
+              <mets:xmlData>
+                <dcterms:dublincore xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+                  <dc:identifier>LE/MON/2</dc:identifier>
+                </dcterms:dublincore>
+              </mets:xmlData>
+            </mets:mdWrap>
+          </mets:dmdSec>
+          <mets:dmdSec ID="dmdSec_3">
+            <mets:mdWrap MDTYPE="DC">
+              <mets:xmlData>
+                <dcterms:dublincore xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+                  <dc:identifier>LE/MON/3</dc:identifier>
+                </dcterms:dublincore>
+              </mets:xmlData>
+            </mets:mdWrap>
+          </mets:dmdSec>
+        </mets:mets>
+        """,
+        ["LE/MON/2", "LE/MON/3"]
+    ),
+
+    # No identifiers!
+    (
+        b"""
+        <?xml version='1.0' encoding='UTF-8'?>
+        <mets:mets xmlns:mets="http://www.loc.gov/METS/">
+          <mets:metsHdr CREATEDATE="2019-12-11T11:34:08"/>
+          <mets:dmdSec ID="dmdSec_2">
+            <mets:mdWrap MDTYPE="DC">
+              <mets:xmlData>
+                <dcterms:dublincore xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/">
+                  <dc:title>My fruit bowl</dc:title>
+                </dcterms:dublincore>
+              </mets:xmlData>
+            </mets:mdWrap>
+          </mets:dmdSec>
+        </mets:mets>
+        """,
+        []
+    ),
+])
+def test_extract_dc_identifiers(mets_xml, expected_identifiers):
+    tree = etree.fromstring(mets_xml.strip())
+    assert list(extract_dc_identifiers(tree)) == expected_identifiers
+
+
+@pytest.mark.parametrize("mets_xml, expected_identifiers", [
+    # Basic example
+    (
+        b"""
+        <?xml version='1.0' encoding='UTF-8'?>
+        <mets:mets xmlns:mets="http://www.loc.gov/METS/">
+          <MetsMetsHdrAltRecordIDType>Accession ID</MetsMetsHdrAltRecordIDType>
+          <MetsMetsHdrAltRecordID>LEMON/1234</MetsMetsHdrAltRecordID>
+        </mets:mets>
+        """,
+        ["LEMON/1234"]
+    ),
+
+    # It ignores a MetsMetsHdrAltRecordIDType that isn't "Accession ID"
+    (
+        b"""
+        <?xml version='1.0' encoding='UTF-8'?>
+        <mets:mets xmlns:mets="http://www.loc.gov/METS/">
+          <MetsMetsHdrAltRecordIDType>Numeric ID</MetsMetsHdrAltRecordIDType>
+          <MetsMetsHdrAltRecordID>12345</MetsMetsHdrAltRecordID>
+          <MetsMetsHdrAltRecordIDType>Accession ID</MetsMetsHdrAltRecordIDType>
+          <MetsMetsHdrAltRecordID>LEMON/1234</MetsMetsHdrAltRecordID>
+        </mets:mets>
+        """,
+        ["LEMON/1234"]
+    ),
+
+    # It finds multiple Accession IDs in the same document (although I've
+    # never seen this happen in practice).
+    (
+        b"""
+        <?xml version='1.0' encoding='UTF-8'?>
+        <mets:mets xmlns:mets="http://www.loc.gov/METS/">
+          <MetsMetsHdrAltRecordIDType>Accession ID</MetsMetsHdrAltRecordIDType>
+          <MetsMetsHdrAltRecordID>LEMON/1234</MetsMetsHdrAltRecordID>
+          <MetsMetsHdrAltRecordIDType>Accession ID</MetsMetsHdrAltRecordIDType>
+          <MetsMetsHdrAltRecordID>LEMON/1234/5</MetsMetsHdrAltRecordID>
+        </mets:mets>
+        """,
+        ["LEMON/1234", "LEMON/1234/5"]
+    ),
+])
+def test_extract_accession_identifiers(mets_xml, expected_identifiers):
+    tree = etree.fromstring(mets_xml.strip())
+    assert list(extract_accession_identifiers(tree)) == expected_identifiers
