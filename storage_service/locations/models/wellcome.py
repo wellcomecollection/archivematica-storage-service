@@ -114,8 +114,8 @@ def get_wellcome_identifier(src_path, package_uuid):
     try:
         subprocess.check_call(
             ["tar", "-xzf", src_path, "-C", temp_dir],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL
+            stdout="/dev/null",
+            stderr="/dev/null"
         )
     except subprocess.CalledProcessError as err:
         LOGGER.debug("Error uncompressing tar.gz bag: %r", err)
@@ -201,7 +201,7 @@ def get_wellcome_identifier(src_path, package_uuid):
             # This means all the files in the tar.gz are relative, not
             # absolute paths to /tmp/...
             "-C", temp_dir, "."
-        ], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        ], stdout="/dev/null", stderr="/dev/null")
     except subprocess.CalledProcessError as err:
         LOGGER.debug("Error repacking bag as tar.gz: %r" % err)
 
