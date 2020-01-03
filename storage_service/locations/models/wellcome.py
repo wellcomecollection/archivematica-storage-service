@@ -87,6 +87,9 @@ def mkdir_p(dirpath):
             raise
 
 
+FNULL = open(os.devnull, 'w')
+
+
 def get_wellcome_identifier(src_path, package_uuid):
     """
     By default, Archivematica will use the UUID as the External-Identifier
@@ -111,11 +114,12 @@ def get_wellcome_identifier(src_path, package_uuid):
     # because it's CPU intensive and we don't want to hang the main Archivematica
     # thread.
     temp_dir = tempfile.mkdtemp()
+
     try:
         subprocess.check_call(
             ["tar", "-xzf", src_path, "-C", temp_dir],
-            stdout="/dev/null",
-            stderr="/dev/null"
+            stdout=FNULL,
+            stderr=FNULL
         )
     except subprocess.CalledProcessError as err:
         LOGGER.debug("Error uncompressing tar.gz bag: %r", err)
@@ -201,7 +205,7 @@ def get_wellcome_identifier(src_path, package_uuid):
             # This means all the files in the tar.gz are relative, not
             # absolute paths to /tmp/...
             "-C", temp_dir, "."
-        ], stdout="/dev/null", stderr="/dev/null")
+        ], stdout=FNULL, stderr=FNULL)
     except subprocess.CalledProcessError as err:
         LOGGER.debug("Error repacking bag as tar.gz: %r" % err)
 
