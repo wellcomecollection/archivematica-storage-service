@@ -7,7 +7,6 @@ import subprocess
 import tempfile
 import time
 
-import bagit
 import boto3
 from django.db import models
 from django.core.urlresolvers import reverse
@@ -139,21 +138,15 @@ def get_wellcome_identifier(src_path, package_uuid):
     bag_dir = os.path.join(temp_dir, os.listdir(temp_dir)[0])
     assert os.path.exists(bag_dir)
     LOGGER.debug("Expanded bag into directory %s" % bag_dir)
-    bag = bagit.Bag(bag_dir)
 
-    mets_files = [
-        name
-        for name in bag.payload_files()
-        if name == "data/METS.%s.xml" % package_uuid
-    ]
+    mets_path = os.path.join(bag_dir, "data/METS.%s.xml" % package_uuid)
 
-    if len(mets_files) != 1:
+    if not os.path.isfile(mets_path):
         LOGGER.debug("Unable to find METS file in bag: %r" % mets_files)
         return package_uuid
 
     # Now we know we can unpack the bag, and we've found the METS file.
     # Parse the METS file.
-    mets_path = os.path.join(bag_dir, mets_files[0])
     tree = etree.parse(mets_path)
 
     # Try to get some identifiers from the METS file.  We try to use the
