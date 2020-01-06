@@ -188,14 +188,18 @@ def get_wellcome_identifier(src_path, package_uuid):
     # At this point, we've found a common prefix and it's non-empty.
     # Write it back into the bag, then compress the bag back up under
     # the original path.
-    bag.info["External-Identifier"] = wellcome_identifier
-    bag.save()
-
+    #
     # Recreate the checksums in the manifests, because we've edited
     # the bag-info.txt.  Note: we run this in a subprocess to avoid
     # locking up the main thread.
+    script = (
+        "import sys, bagit; "
+        "bag = bagit.Bag(sys.argv[1]); "
+        "bag.info['External-Identifier'] = sys.argv[2]; "
+        "bag.save(manifests=True)"
+    )
     subprocess.check_call(
-        ["bagit.py", "--sha256", temp_dir],
+        ["python", "-c", script, temp_dir, wellcome_identifier],
         stdout=FNULL,
         stderr=FNULL
     )
