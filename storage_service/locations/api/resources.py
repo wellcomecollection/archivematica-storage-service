@@ -1007,22 +1007,34 @@ class PackageResource(ModelResource):
         for polling for job completion.
         """
         try:
+            LOGGER.info("@@AWLC calling obj_create_async(request=%r)", request)
             self.method_check(request, allowed=["post"])
+            LOGGER.info("@@AWLC called self.method_check()")
             self.is_authenticated(request)
+            LOGGER.info("@@AWLC called self.is_authenticated()")
             self.throttle_check(request)
+            LOGGER.info("@@AWLC called self.throttle_check()")
             self.log_throttled_access(request)
+            LOGGER.info("@@AWLC called self.log_throttled_access()")
 
             deserialized = self.deserialize(
                 request,
                 request.body,
                 format=request.META.get("CONTENT_TYPE", "application/json"),
             )
+
+            LOGGER.info("@@AWLC deserialized=%r", deserialized)
+
             deserialized = self.alter_deserialized_detail_data(request, deserialized)
+            LOGGER.info("@@AWLC deserialized=%r", deserialized)
+
             bundle = self.build_bundle(
                 data=dict_strip_unicode_keys(deserialized), request=request
             )
+            LOGGER.info("@@AWLC bundle=%r", bundle)
 
             bundle = super(PackageResource, self).obj_create(bundle, **kwargs)
+            LOGGER.info("@@AWLC bundle=%r", bundle)
 
             def task():
                 self._store_bundle(bundle)
@@ -1032,6 +1044,7 @@ class PackageResource(ModelResource):
                 return new_bundle.data
 
             async_task = AsyncManager.run_task(task)
+            LOGGER.info("@@AWLC async_task=%r", async_task)
 
             response = http.HttpAccepted()
 
@@ -1923,7 +1936,10 @@ class PackageResource(ModelResource):
 
     @_custom_endpoint(expected_methods=['post'])
     def wellcome_callback(self, request, bundle, **kwargs):
-        LOGGER.debug("wellcome package callback")
+        LOGGER.debug(
+            "Received a callback from the Wellcome Storage Service: "
+            "request=%r, bundle=%r", request, bundle
+        )
         try:
             package = Package.objects.get(uuid=kwargs['uuid'])
         except Package.DoesNotExist:
