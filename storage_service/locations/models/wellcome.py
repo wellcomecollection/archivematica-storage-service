@@ -187,8 +187,15 @@ def get_wellcome_identifier(src_path, package_uuid):
 
     # At this point, we've found a common prefix and it's non-empty.
     # Write it back into the bag, then compress the bag back up under
-    # the original path.  Remember to rebuild the manifests.
+    # the original path.
     bag.info["External-Identifier"] = wellcome_identifier
+    bag.save()
+
+    # Recreate the checksums in the manifests, because we've edited
+    # the bag-info.txt.  Note: we run this in a subprocess to avoid
+    # locking up the main thread.
+    subprocess.check_call(["bagit.py", "--sha256", temp_dir])
+
     bag.save(manifests=True)
     LOGGER.debug("Detected Wellcome identifier as %s", wellcome_identifier)
 
