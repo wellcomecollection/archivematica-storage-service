@@ -194,9 +194,12 @@ def get_wellcome_identifier(src_path, package_uuid):
     # Recreate the checksums in the manifests, because we've edited
     # the bag-info.txt.  Note: we run this in a subprocess to avoid
     # locking up the main thread.
-    subprocess.check_call(["bagit.py", "--sha256", temp_dir])
+    subprocess.check_call(
+        ["bagit.py", "--sha256", temp_dir],
+        stdout=FNULL,
+        stderr=FNULL
+    )
 
-    bag.save(manifests=True)
     LOGGER.debug("Detected Wellcome identifier as %s", wellcome_identifier)
 
     # Recompress the bag.  We write it to a temporary path first, so if we
