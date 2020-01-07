@@ -103,6 +103,9 @@ def get_wellcome_identifier(src_path, package_uuid):
     Archivematica external identifier.
 
     """
+    print("@@AWLC return immediately, does this work?")
+    return package_uuid
+
     LOGGER.debug("Trying to find Wellcome identifier in %s", src_path)
 
     # If we're not looking at a tar.gz compressed bag, stop.
