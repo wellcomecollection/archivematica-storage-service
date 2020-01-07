@@ -193,8 +193,8 @@ def get_wellcome_identifier(src_path, package_uuid):
     )
     subprocess.check_call(
         ["python", "-c", script, temp_dir, wellcome_identifier],
-        stdout=FNULL,
-        stderr=FNULL
+        # stdout=FNULL,
+        # stderr=FNULL
     )
 
     LOGGER.debug("Detected Wellcome identifier as %s", wellcome_identifier)
