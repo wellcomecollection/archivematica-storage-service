@@ -192,7 +192,7 @@ def get_wellcome_identifier(src_path, package_uuid):
         "bag.save(manifests=True)"
     )
     subprocess.check_call(
-        ["python", "-c", script, temp_dir, wellcome_identifier],
+        ["python", "-c", script, bag_dir, wellcome_identifier],
         # stdout=FNULL,
         # stderr=FNULL
     )
