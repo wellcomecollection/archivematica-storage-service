@@ -24,7 +24,8 @@ LOGGER = logging.getLogger(__name__)
 # How long we should wait for the watchdog thread to update a task before giving
 # up on it.  This value determines how long a client will take to notice that
 # their task has died.
-TASK_TIMEOUT_SECONDS = datetime.timedelta(seconds=120)
+# Bumped to really big! https://github.com/archivematica/Issues/issues/425
+TASK_TIMEOUT_SECONDS = datetime.timedelta(seconds=86400)
 
 # How long a task's results should persist (in the DB) after it finishes.
 # Results will generally be consumed right away, so this number doesn't have to

@@ -103,9 +103,6 @@ def get_wellcome_identifier(src_path, package_uuid):
     Archivematica external identifier.
 
     """
-    print("@@AWLC return immediately, does this work?")
-    return package_uuid
-
     LOGGER.debug("Trying to find Wellcome identifier in %s", src_path)
 
     # If we're not looking at a tar.gz compressed bag, stop.
@@ -172,6 +169,8 @@ def get_wellcome_identifier(src_path, package_uuid):
                 "No common prefix in the accession numbers, falling back to UUID")
             return
 
+    LOGGER.debug("Detected Wellcome identifier as %s", wellcome_identifier)
+
     # To make the bag layout a bit more deterministic, rename the
     # METS file to something that doesn't include the package UUID.
     bare_mets_path = os.path.join(bag_dir, "data", "METS.xml")
@@ -199,8 +198,6 @@ def get_wellcome_identifier(src_path, package_uuid):
         # stdout=FNULL,
         # stderr=FNULL
     )
-
-    LOGGER.debug("Detected Wellcome identifier as %s", wellcome_identifier)
 
     # Recompress the bag.  We write it to a temporary path first, so if we
     # corrupt something, the original tar.gz is preserved.
