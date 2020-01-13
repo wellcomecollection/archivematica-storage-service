@@ -89,7 +89,18 @@ def mkdir_p(dirpath):
 FNULL = open(os.devnull, 'w')
 
 
-def get_wellcome_identifier(src_path, package_uuid):
+class WellcomeIdentifier(object):
+    def __init__(self, space_id, external_identifier):
+        self.space_id = space_id
+        self.external_identifier = external_identifier
+
+    def __repr__(self):
+        return "WellcomeIdentifier(space_id=%r, external_identifier=%r)" % (
+            self.space_id, self.external_identifier
+        )
+
+
+def get_wellcome_identifier(src_path, package_uuid, space_id):
     """
     By default, Archivematica will use the UUID as the External-Identifier
     when calling the Wellcome Storage.
@@ -103,11 +114,16 @@ def get_wellcome_identifier(src_path, package_uuid):
     Archivematica external identifier.
 
     """
+    default_identifier = WellcomeIdentifier(
+        space_id=space_id,
+        external_identifier=package_uuid
+    )
+
     LOGGER.debug("Trying to find Wellcome identifier in %s", src_path)
 
     # If we're not looking at a tar.gz compressed bag, stop.
     if not src_path.endswith(".tar.gz"):
-        return package_uuid
+        return default_identifier
 
     # Unpack the tar.gz to a temporary directory.  We run tar in a subprocess
     # because it's CPU intensive and we don't want to hang the main Archivematica
@@ -122,7 +138,7 @@ def get_wellcome_identifier(src_path, package_uuid):
         )
     except subprocess.CalledProcessError as err:
         LOGGER.debug("Error uncompressing tar.gz bag: %r", err)
-        return package_uuid
+        return default_identifier
 
     # There should be a single directory in the temporary directory -- the
     # uncompressed bag.
@@ -131,7 +147,7 @@ def get_wellcome_identifier(src_path, package_uuid):
             "Unable to identify root of bag in: os.listdir(%r) = %r",
             temp_dir, os.listdir(temp_dir)
         )
-        return package_uuid
+        return default_identifier
 
     # Inside the bag, we look for the METS.xml file that contains information
     # about the package.  If we can't find it unambiguously, give up.
@@ -143,7 +159,7 @@ def get_wellcome_identifier(src_path, package_uuid):
 
     if not os.path.isfile(mets_path):
         LOGGER.debug("Unable to find METS file in bag: %r" % mets_files)
-        return package_uuid
+        return default_identifier
 
     # Now we know we can unpack the bag, and we've found the METS file.
     # Parse the METS file.
@@ -154,20 +170,27 @@ def get_wellcome_identifier(src_path, package_uuid):
     # both of those fail we fall back to the package UUID.
     try:
         LOGGER.debug("Looking for Dublin-Core identifiers in the METS")
-        wellcome_identifier = get_common_prefix(
-            extract_dc_identifiers(tree)
+        wellcome_identifier = WellcomeIdentifier(
+            space_id=space_id,
+            external_identifier=get_common_prefix(extract_dc_identifiers(tree))
         )
     except NoCommonPrefix as err:
         LOGGER.debug("No common prefix in the Dublin-Core identifiers")
         LOGGER.debug("Looking for accession numbers in the METS")
         try:
-            wellcome_identifier = get_common_prefix(
-                extract_accession_identifiers(tree)
+            external_identifier = get_common_prefix(extract_accession_identifiers(tree))
+
+            if not space_id.endswith("-accessions"):
+                space_id = "%s-accessions" % space_id
+
+            wellcome_identifier = WellcomeIdentifier(
+                space_id=space_id,
+                external_identifier=get_common_prefix(extract_accession_identifiers(tree))
             )
         except NoCommonPrefix:
             LOGGER.debug(
                 "No common prefix in the accession numbers, falling back to UUID")
-            return
+            return default_identifier
 
     LOGGER.debug("Detected Wellcome identifier as %s", wellcome_identifier)
 
@@ -194,9 +217,9 @@ def get_wellcome_identifier(src_path, package_uuid):
         "bag.save(manifests=True)"
     )
     subprocess.check_call(
-        ["python", "-c", script, bag_dir, wellcome_identifier],
-        # stdout=FNULL,
-        # stderr=FNULL
+        ["python", "-c", script, bag_dir, wellcome_identifier.external_identifier],
+        stdout=FNULL,
+        stderr=FNULL
     )
 
     # Recompress the bag.  We write it to a temporary path first, so if we
@@ -269,7 +292,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
         assert package is not None
 
         space_id = package.misc_attributes["wellcome.space"]
-        source_id = package.misc_attributes["wellcome.identifier"]
+        source_id = package.misc_attributes["wellcome.external_identifier"]
         version = package.misc_attributes.get("wellcome.version")
 
         # Look up the bag details by UUID
@@ -319,7 +342,8 @@ class WellcomeStorageService(S3SpaceModelMixin):
 
         wellcome_identifier = get_wellcome_identifier(
             src_path=src_path,
-            package_uuid=package.uuid
+            package_uuid=package.uuid,
+            space_id=space_id
         )
 
         # The Wellcome Storage reads packages out of S3, so we need to
@@ -343,13 +367,13 @@ class WellcomeStorageService(S3SpaceModelMixin):
         # We don't know if other packages have been ingested to the
         # Wellcome Storage for this identifier -- query for existing bags,
         # and select an ingest type appropriately.
-        if wellcome_identifier == package.uuid:
+        if wellcome_identifier.external_identifier == package.uuid:
             ingest_type = "create"
         else:
             try:
                 self.wellcome_client.get_bag(
-                    space_id=space_id,
-                    source_id=wellcome_identifier
+                    space_id=wellcome_identifier.space_id,
+                    source_id=wellcome_identifier.external_identifier
                 )
             except BagNotFound:
                 ingest_type = "create"
@@ -372,12 +396,12 @@ class WellcomeStorageService(S3SpaceModelMixin):
 
         # Record the attributes on the package, so we can use them to
         # retrieve a bag later.
-        package.misc_attributes["wellcome.identifier"] = wellcome_identifier
+        package.misc_attributes["wellcome.external_identifier"] = wellcome_identifier.external_identifier
         package.misc_attributes["wellcome.space"] = space_id
 
         LOGGER.info(
             "Uploading to Wellcome Storage with external identifier %s, space %s, ingest type %s",
-            wellcome_identifier, space_id, ingest_type
+            wellcome_identifier.external_identifier, wellcome_identifier.space_id, ingest_type
         )
 
         # For reingests, the package status will still be 'uploaded'
@@ -388,13 +412,13 @@ class WellcomeStorageService(S3SpaceModelMixin):
 
         # Either create or update a bag on the storage service
         # https://github.com/wellcometrust/platform/tree/master/docs/rfcs/002-archival_storage#updating-an-existing-bag
-        LOGGER.info('Callback will be to %s', callback_url)
+        LOGGER.info("Callback will be to %s", callback_url)
         location = self.wellcome_client.create_s3_ingest(
-            space_id=space_id,
+            space_id=wellcome_identifier.space_id,
             s3_key=s3_temporary_path,
             s3_bucket=self.bucket_name,
             callback_url=callback_url,
-            external_identifier=wellcome_identifier,
+            external_identifier=wellcome_identifier.external_identifier,
             ingest_type=ingest_type,
         )
         LOGGER.info('Ingest_location: %s', location)
