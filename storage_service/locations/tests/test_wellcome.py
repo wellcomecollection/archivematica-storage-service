@@ -183,7 +183,7 @@ class TestWellcomeMoveFromStorageService(WellcomeTestBase):
         package.refresh_from_db()
         assert package.status == models.Package.UPLOADED
         assert package.current_path == 'bag-6465da4a-ea88-4300-ac56-9641125f1276.zip'
-        assert package.misc_attributes['wellcome.identifier'] == "6465da4a-ea88-4300-ac56-9641125f1276"
+        assert package.misc_attributes['wellcome.external_identifier'] == "6465da4a-ea88-4300-ac56-9641125f1276"
         assert package.misc_attributes['wellcome.version'] == 'v3'
 
     @mock.patch("time.sleep")
@@ -275,7 +275,7 @@ class TestWellcomeMoveToStorageService(WellcomeTestBase):
         package = self.get_package()
         package.misc_attributes["wellcome.version"] = "v3"
         package.misc_attributes["wellcome.space"] = "name-of-space"
-        package.misc_attributes["wellcome.identifier"] = "bag-id"
+        package.misc_attributes["wellcome.external_identifier"] = "bag-id"
 
         self._s3.create_bucket(Bucket='ia-bucket')
         self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v3/data/file1')
@@ -332,7 +332,7 @@ class TestWellcomeMoveToStorageService(WellcomeTestBase):
         package = self.get_package()
         package.misc_attributes["wellcome.version"] = "v3"
         package.misc_attributes["wellcome.space"] = "name-of-space"
-        package.misc_attributes["wellcome.identifier"] = "bag-id"
+        package.misc_attributes["wellcome.external_identifier"] = "bag-id"
 
         self._s3.create_bucket(Bucket='ia-bucket')
         self._s3.upload_fileobj(StringIO("file contents"), 'ia-bucket', 'bucket-subdir/bag-id/v3/data/file1')
