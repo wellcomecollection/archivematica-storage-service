@@ -158,7 +158,7 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
     mets_path = os.path.join(bag_dir, "data/METS.%s.xml" % package_uuid)
 
     if not os.path.isfile(mets_path):
-        LOGGER.debug("Unable to find METS file in bag: %r" % mets_files)
+        LOGGER.debug("Unable to find METS file in bag at path: %r" % mets_path)
         return default_identifier
 
     # Now we know we can unpack the bag, and we've found the METS file.
@@ -185,7 +185,7 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
 
             wellcome_identifier = WellcomeIdentifier(
                 space_id=space_id,
-                external_identifier=get_common_prefix(extract_accession_identifiers(tree))
+                external_identifier=external_identifier
             )
         except NoCommonPrefix:
             LOGGER.debug(
@@ -404,6 +404,10 @@ class WellcomeStorageService(models.Model):
         src_filename = os.path.basename(src_path)
         src_name, __ = os.path.splitext(src_filename)
 
+        # Use the relative_path as the storage service space ID
+        location = package.current_location
+        space_id = location.relative_path.strip(os.path.sep)
+
         wellcome_identifier = get_wellcome_identifier(
             src_path=src_path,
             package_uuid=package.uuid,
@@ -423,10 +427,6 @@ class WellcomeStorageService(models.Model):
             raise StorageException(
                 _('%(path)s is not a file, may be a directory or not exist') %
                 {'path': src_path})
-
-        # Use the relative_path as the storage service space ID
-        location = package.current_location
-        space_id = location.relative_path.strip(os.path.sep)
 
         # We don't know if other packages have been ingested to the
         # Wellcome Storage for this identifier -- query for existing bags,
