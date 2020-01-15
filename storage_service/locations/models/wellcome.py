@@ -33,7 +33,10 @@ DOWNLOAD_BAG_SCRIPT = '''
 import json, sys
 from wellcome_storage_service import download_compressed_bag
 
-bag = json.loads(sys.argv[1])
+bag_json_path = sys.argv[1]
+with open(bag_json_path) as infile:
+    bag = json.load(infile)
+
 dest_path = sys.argv[2]
 top_level_dir=sys.argv[3]
 
@@ -305,6 +308,16 @@ class WellcomeStorageService(S3SpaceModelMixin):
         src_filename = os.path.basename(src_path)
         src_name, _ = src_filename.split(".", 1)
 
+        # We pass the contents of the bag into the download script as
+        # a file, not a literal string, because otherwise you get an error
+        # from subprocess for large bags:
+        #
+        #     OSError: [Errno 7] Argument list too long
+        #
+        _, tmp_path = tempfile.mkstemp()
+        with open(tmp_path, "w") as out_file:
+            out_file.write(json.dumps(bag))
+
         # We use a subprocess here because the compression of the download
         # is CPU-intensive, especially for larger files, and can render the
         # main process unresponsive. This can cause problems (a) for server
@@ -315,10 +328,12 @@ class WellcomeStorageService(S3SpaceModelMixin):
         subprocess.check_call([
             'python',
             '-c', DOWNLOAD_BAG_SCRIPT,
-            json.dumps(bag),
+            tmp_path,
             dest_path,
             src_name,
         ], stderr=subprocess.STDOUT)
+
+        os.unlink(tmp_path)
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
         """
