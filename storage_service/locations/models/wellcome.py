@@ -461,7 +461,7 @@ class WellcomeStorageService(models.Model):
         # Record the attributes on the package, so we can use them to
         # retrieve a bag later.
         package.misc_attributes["wellcome.external_identifier"] = wellcome_identifier.external_identifier
-        package.misc_attributes["wellcome.space"] = space_id
+        package.misc_attributes["wellcome.space"] = wellcome_identifier.space_id
 
         LOGGER.info(
             "Uploading to Wellcome Storage with external identifier %s, space %s, ingest type %s",
