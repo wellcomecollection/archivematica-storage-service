@@ -109,13 +109,13 @@ class S3(models.Model):
         """
         LOGGER.debug("Test the S3 bucket '%s' exists", self.bucket_name)
         try:
-            loc_info = self.resource.meta.client.get_bucket_location(
+            loc_info = self.resource.meta.client.head_bucket(
                 Bucket=self.bucket_name
             )
             LOGGER.debug("S3 bucket's response: %s", loc_info)
         except botocore.exceptions.ClientError as err:
             error_code = err.response["Error"]["Code"]
-            if error_code != "NoSuchBucket":
+            if error_code not in ["NoSuchBucket", "404"]:
                 raise StorageException(err)
             LOGGER.info("Creating S3 bucket '%s'", self.bucket_name)
             # LocationConstraint cannot be specified if it us-east-1 because it is the default, see: https://github.com/boto/boto3/issues/125
