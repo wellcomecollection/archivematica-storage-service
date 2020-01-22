@@ -31,7 +31,7 @@ class TestS3Storage(TestCase):
         assert self.s3_object.bucket_name == "test-bucket"
 
     def test_bucket_name_falls_back_to_space_id(self):
-        self.s3_object.bucket = ""
+        self.s3_object.s3_bucket = ""
         self.s3_object.save()
 
         assert self.s3_object.bucket_name == "ae37f081-8baf-4d5d-9b1f-aebe367f1707"
@@ -54,7 +54,7 @@ class TestS3Storage(TestCase):
     def test_ensure_bucket_exists_head_fails(self):
         client = boto3.client("s3", region_name="us-east-1")
 
-        self.s3_object.resource.meta.client.head_bucket = mock.Mock(
+        self.s3_object.s3_resource.meta.client.head_bucket = mock.Mock(
             side_effect=botocore.exceptions.BotoCoreError
         )
 
@@ -64,10 +64,10 @@ class TestS3Storage(TestCase):
     def test_ensure_bucket_exists_creation_fails(self):
         client = boto3.client("s3", region_name="us-east-1")
 
-        self.s3_object.resource.meta.client.head_bucket = mock.Mock(
+        self.s3_object.s3_resource.meta.client.head_bucket = mock.Mock(
             side_effect=botocore.exceptions.BotoCoreError
         )
-        self.s3_object.resource.meta.client.create_bucket = mock.Mock(
+        self.s3_object.s3_resource.meta.client.create_bucket = mock.Mock(
             side_effect=botocore.exceptions.BotoCoreError
         )
 

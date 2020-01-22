@@ -101,11 +101,11 @@ PROTOCOL = {
         "model": models.S3,
         "form": forms.S3Form,
         "fields": [
-            "endpoint_url",
-            "access_key_id",
-            "secret_access_key",
-            "region",
-            "bucket",
+            "s3_endpoint_url",
+            "aws_access_key_id",
+            "aws_secret_access_key",
+            "s3_region",
+            "s3_bucket",
         ],
     },
     models.Space.WELLCOME: {

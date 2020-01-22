@@ -4,11 +4,11 @@
     "model": "locations.s3",
     "fields": {
         "space": "ae37f081-8baf-4d5d-9b1f-aebe367f1707",
-        "access_key_id": "",
-        "secret_access_key": "",
-        "endpoint_url": "https://s3.amazonaws.com",
-        "region": "us-east-1",
-        "bucket": "test-bucket"
+        "aws_access_key_id": "",
+        "aws_secret_access_key": "",
+        "s3_endpoint_url": "https://s3.amazonaws.com",
+        "s3_region": "us-east-1",
+        "s3_bucket": "test-bucket"
     }
 },
 {
