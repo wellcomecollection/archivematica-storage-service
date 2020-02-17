@@ -195,15 +195,6 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
 
     LOGGER.debug("Detected Wellcome identifier as %s", wellcome_identifier)
 
-    # To make the bag layout a bit more deterministic, rename the
-    # METS file to something that doesn't include the package UUID.
-    bare_mets_path = os.path.join(bag_dir, "data", "METS.xml")
-    if (
-        not os.path.exists(bare_mets_path) or
-        not mets_path.startswith(os.path.join(bag_dir, "data"))
-    ):
-        os.rename(mets_path, bare_mets_path)
-
     # At this point, we've found a common prefix and it's non-empty.
     # Write it back into the bag, then compress the bag back up under
     # the original path.
