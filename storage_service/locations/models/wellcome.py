@@ -304,13 +304,23 @@ class WellcomeStorageService(S3SpaceModelMixin):
         # checks, resulting in it being terminated before it can finish
         # building the archive.
         # See https://github.com/wellcometrust/platform/issues/3954
-        subprocess.check_call([
-            'python',
-            '-c', DOWNLOAD_BAG_SCRIPT,
-            json.dumps(bag),
-            dest_path,
-            src_name,
-        ], stderr=subprocess.STDOUT)
+        #
+        # We write to a separate file, because otherwise we get the error:
+        #
+        #     OSError: [Errno 7] Argument list too long: 'python'
+        #
+        _, script_path = tempfile.mkstemp(suffix=".py", prefix="download_bag")
+
+        with open(script_path, "w") as out_file:
+            out_file.write(DOWNLOAD_BAG_SCRIPT)
+
+        try:
+            subprocess.check_call(
+                ["python", script_path, json.dumps(bag), dest_path, src_name],
+                stderr=subprocess.STDOUT
+            )
+        finally:
+            os.unlink(script_path)
 
     def move_from_storage_service(self, src_path, dest_path, package=None):
         """
