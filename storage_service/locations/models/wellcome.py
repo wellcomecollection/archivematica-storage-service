@@ -103,7 +103,7 @@ class WellcomeIdentifier(object):
 
 class NoWellcomeIdentifierFound(ValueError):
     def __init__(self):
-        return super().__init__(
+        return super(NoWellcomeIdentifierFound, self).__init__(
             "Unable to find a suitable identifier to use in the Wellcome identifier. "
             "Please re-send this transfer, supplying either (1) an accession number, "
             "or (2) a Dublin-Core identifier `dc.identifier` in the metadata."
@@ -183,7 +183,9 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
         LOGGER.debug("No common prefix in the Dublin-Core identifiers")
         LOGGER.debug("Looking for accession numbers in the METS")
         try:
-            external_identifier = get_common_prefix(extract_accession_identifiers(tree))
+            accession_numbers = list(extract_accession_identifiers(tree))
+            LOGGER.debug("Found accession numbers: %r", accession_numbers)
+            external_identifier = get_common_prefix(accession_numbers)
 
             if not space_id.endswith("-accessions"):
                 space_id = "%s-accessions" % space_id
