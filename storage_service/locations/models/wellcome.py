@@ -101,6 +101,15 @@ class WellcomeIdentifier(object):
         )
 
 
+class NoWellcomeIdentifierFound(ValueError):
+    def __init__(self):
+        return super().__init__(
+            "Unable to find a suitable identifier to use in the Wellcome identifier. "
+            "Please re-send this transfer, supplying either (1) an accession number, "
+            "or (2) a Dublin-Core identifier `dc.identifier` in the metadata."
+        )
+
+
 def get_wellcome_identifier(src_path, package_uuid, space_id):
     """
     By default, Archivematica will use the UUID as the External-Identifier
@@ -115,16 +124,11 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
     Archivematica external identifier.
 
     """
-    default_identifier = WellcomeIdentifier(
-        space_id=space_id,
-        external_identifier=package_uuid
-    )
-
     LOGGER.debug("Trying to find Wellcome identifier in %s", src_path)
 
     # If we're not looking at a tar.gz compressed bag, stop.
     if not src_path.endswith(".tar.gz"):
-        return default_identifier
+        raise NoWellcomeIdentifierFound()
 
     # Unpack the tar.gz to a temporary directory.  We run tar in a subprocess
     # because it's CPU intensive and we don't want to hang the main Archivematica
@@ -139,7 +143,7 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
         )
     except subprocess.CalledProcessError as err:
         LOGGER.debug("Error uncompressing tar.gz bag: %r", err)
-        return default_identifier
+        raise NoWellcomeIdentifierFound()
 
     # There should be a single directory in the temporary directory -- the
     # uncompressed bag.
@@ -148,7 +152,7 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
             "Unable to identify root of bag in: os.listdir(%r) = %r",
             temp_dir, os.listdir(temp_dir)
         )
-        return default_identifier
+        raise NoWellcomeIdentifierFound()
 
     # Inside the bag, we look for the METS.xml file that contains information
     # about the package.  If we can't find it unambiguously, give up.
@@ -160,7 +164,7 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
 
     if not os.path.isfile(mets_path):
         LOGGER.debug("Unable to find METS file in bag at path: %r" % mets_path)
-        return default_identifier
+        raise NoWellcomeIdentifierFound()
 
     # Now we know we can unpack the bag, and we've found the METS file.
     # Parse the METS file.
@@ -189,9 +193,8 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
                 external_identifier=external_identifier
             )
         except NoCommonPrefix:
-            LOGGER.debug(
-                "No common prefix in the accession numbers, falling back to UUID")
-            return default_identifier
+            LOGGER.debug("No common prefix in the accession numbers")
+            raise NoWellcomeIdentifierFound()
 
     LOGGER.debug("Detected Wellcome identifier as %s", wellcome_identifier)
 
