@@ -2,12 +2,10 @@ import errno
 import json
 import logging
 import os
-import re
 import subprocess
 import tempfile
 import time
 
-import boto3
 from django.db import models
 from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext_lazy as _
@@ -60,7 +58,7 @@ def handle_ingest(ingest, package):
 
         package.save()
 
-    elif status =='failed':
+    elif status == 'failed':
         LOGGER.error('Ingest failed')
         package.status = Package.FAIL
         package.save()
