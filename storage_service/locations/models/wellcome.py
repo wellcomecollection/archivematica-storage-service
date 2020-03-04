@@ -557,5 +557,5 @@ def extract_accession_identifiers(transfer_tree):
     #
     #     <mets:altRecordID TYPE="Accession ID">1148</mets:altRecordID>
     #
-    for record in tree.xpath(".//mets:altRecordID[TYPE()='Accession ID']"):
+    for record in transfer_tree.xpath(".//mets:altRecordID[TYPE()='Accession ID']"):
         yield record.text
