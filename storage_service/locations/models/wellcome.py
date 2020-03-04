@@ -110,6 +110,25 @@ class NoWellcomeIdentifierFound(ValueError):
         )
 
 
+def _find_transfer_mets_path(bag_dir):
+    # The transfer METS path is written into the bag at something like
+    #
+    #       data/objects/submissionDocumentation/WT_1234-{uuid}/METS.xml
+    #
+    # We don't know what that directory name will be, so guess and find it
+    # that way.
+    submission_docs_dir = os.path.join(bag_dir, "data/objects/submissionDocumentation")
+
+    if len(os.listdir(submission_docs_dir)) == 1:
+        return os.path.join(
+            submission_docs_dir,
+            os.listdir(submission_docs_dir)[0],
+            "METS.xml"
+        )
+    else:
+        return None
+
+
 def get_wellcome_identifier(src_path, package_uuid, space_id):
     """
     By default, Archivematica will use the UUID as the External-Identifier
@@ -162,13 +181,21 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
 
     mets_path = os.path.join(bag_dir, "data/METS.%s.xml" % package_uuid)
 
+    transfer_mets_path = _find_transfer_mets_path(bag_dir)
+
     if not os.path.isfile(mets_path):
-        LOGGER.debug("Unable to find METS file in bag at path: %r" % mets_path)
+        LOGGER.warn("Unable to find METS file in bag at path: %r", mets_path)
+        raise NoWellcomeIdentifierFound()
+
+    if not os.path.isfile(transfer_mets_path):
+        LOGGER.warn(
+            "Unable to find transfer METS file in bag at path: %r", transfer_mets_path)
         raise NoWellcomeIdentifierFound()
 
     # Now we know we can unpack the bag, and we've found the METS file.
     # Parse the METS file.
     tree = etree.parse(mets_path)
+    transfer_tree = etree.parse(transfer_mets_path)
 
     # Try to get some identifiers from the METS file.  We try to use the
     # Dublin Core identifiers first, if not the accession number, and if
@@ -181,9 +208,9 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
         )
     except NoCommonPrefix as err:
         LOGGER.debug("No common prefix in the Dublin-Core identifiers")
-        LOGGER.debug("Looking for accession numbers in the METS")
+        LOGGER.debug("Looking for accession numbers in the transfer METS")
         try:
-            accession_numbers = list(extract_accession_identifiers(tree))
+            accession_numbers = list(extract_accession_identifiers(transfer_tree))
             LOGGER.debug("Found accession numbers: %r", accession_numbers)
             external_identifier = get_common_prefix(accession_numbers)
 
@@ -522,33 +549,13 @@ def extract_dc_identifiers(tree):
         yield identifier.text
 
 
-def extract_accession_identifiers(tree):
+def extract_accession_identifiers(transfer_tree):
     """
-    Find all accession identifiers in the METS files.
+    Find all accession identifiers in the transfer METS files.
     """
-    # The Accession identifier is written into a block of exiftool data,
-    # of the form:
+    # The Accession identifier is written into the METS header:
     #
-    #       <exiftool xmlns="">
-    #         ...
-    #         <MetsMetsHdrAltRecordIDType>Accession ID</MetsMetsHdrAltRecordIDType>
-    #         <MetsMetsHdrAltRecordID>LEMON/ALEX</MetsMetsHdrAltRecordID>
-    #         ...
-    #       </exiftool>
+    #     <mets:altRecordID TYPE="Accession ID">1148</mets:altRecordID>
     #
-    # So we look for instances of MetsMetsHdrAltRecordID that follow an instance
-    # of MetsMetsHdrAltRecordIDType with value "Accession ID".
-    #
-    # In practice, I haven't seen Archivematica write any METS that features an
-    # MetsMetsHdrAltRecordIDType with anything but "Accession ID", but this
-    # should be more robust against possible future changes.
-    #
-    # Breaking down the XPath:
-    #
-    #     .//MetsMetsHdrAltRecordIDType   Get tags of type <MetsMetsHdrAltRecordIDType>
-    #     [text()='Accession ID']         Only if the text is 'Accession ID'
-    #     /following                      Get tags immediately following this one
-    #     ::MetsMetsHdrAltRecordID        Only if the type is <MetsMetsHdrAltRecordID>
-    #
-    for record in tree.xpath(".//MetsMetsHdrAltRecordIDType[text()='Accession ID']/following::MetsMetsHdrAltRecordID"):
+    for record in tree.xpath(".//mets:altRecordID[TYPE()='Accession ID']"):
         yield record.text
