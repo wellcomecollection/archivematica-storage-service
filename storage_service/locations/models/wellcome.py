@@ -190,25 +190,22 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
             "Unable to find transfer METS file in bag at path: %r", transfer_mets_path)
         raise NoWellcomeIdentifierFound()
 
-    # Now we know we can unpack the bag, and we've found the METS file.
-    # Parse the METS file.
-    tree = etree.parse(mets_path)
-    transfer_tree = etree.parse(transfer_mets_path)
-
-    # Try to get some identifiers from the METS file.  We try to use the
+    # Try to get some identifiers from the METS files.  We try to use the
     # Dublin Core identifiers first, if not the accession number, and if
     # both of those fail we fall back to the package UUID.
     try:
         LOGGER.debug("Looking for Dublin-Core identifiers in the METS")
         wellcome_identifier = WellcomeIdentifier(
             space_id=space_id,
-            external_identifier=get_common_prefix(extract_dc_identifiers(tree))
+            external_identifier=get_common_prefix(extract_dc_identifiers(mets_path))
         )
     except NoCommonPrefix as err:
         LOGGER.debug("No common prefix in the Dublin-Core identifiers")
         LOGGER.debug("Looking for accession numbers in the transfer METS")
         try:
-            accession_numbers = list(extract_accession_identifiers(transfer_tree))
+            accession_numbers = list(
+                extract_accession_identifiers(transfer_mets_path)
+            )
             LOGGER.debug("Found accession numbers: %r", accession_numbers)
             external_identifier = get_common_prefix(accession_numbers)
 
@@ -520,7 +517,7 @@ def get_common_prefix(identifiers):
     return "/".join(common_components)
 
 
-def extract_dc_identifiers(tree):
+def extract_dc_identifiers(mets_path):
     """
     Find all Dublin-Core identifier values in a METS file.
     """
@@ -538,16 +535,17 @@ def extract_dc_identifiers(tree):
     #
     # So we look for instances of "identifier" in the "dc:" namespace.
     #
-    namespaces = {
-        "mets": "http://www.loc.gov/METS/",
-        "dc": "http://purl.org/dc/elements/1.1/",
-        "dcterms": "http://purl.org/dc/terms/",
-    }
-    for identifier in tree.xpath(".//dc:identifier", namespaces=namespaces):
-        yield identifier.text
+    # Note: we have to do iterparse() because Archivematica produces exceptionally
+    # large METS files, and trying to open one that's too large will cause the
+    # running worker to crash.
+    for _event, element in etree.iterparse(mets_path):
+        if element.tag != "{http://purl.org/dc/elements/1.1/}identifier":
+            continue
+
+        yield element.text
 
 
-def extract_accession_identifiers(transfer_tree):
+def extract_accession_identifiers(transfer_mets_path):
     """
     Find all accession identifiers in the transfer METS files.
     """
@@ -555,5 +553,14 @@ def extract_accession_identifiers(transfer_tree):
     #
     #     <mets:altRecordID TYPE="Accession ID">1148</mets:altRecordID>
     #
-    for record in transfer_tree.xpath(".//mets:altRecordID[TYPE()='Accession ID']"):
-        yield record.text
+    # Note: we have to do iterparse() because Archivematica produces exceptionally
+    # large METS files, and trying to open one that's too large will cause the
+    # running worker to crash.
+    for _event, element in etree.iterparse(transfer_mets_path):
+        if element.tag != "{http://www.loc.gov/METS/}altRecordID":
+            continue
+
+        if element.attrib.get("TYPE") != "Accession ID":
+            continue
+
+        yield element.text
