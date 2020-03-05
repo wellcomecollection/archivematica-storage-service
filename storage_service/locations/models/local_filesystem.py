@@ -40,7 +40,14 @@ class LocalFilesystem(models.Model):
         """ Moves src_path to dest_space.staging_path/dest_path. """
         # Archivematica expects the file to still be on disk even after stored
         self.space.create_local_directory(dest_path)
-        return self.space.move_rsync(src_path, dest_path)
+
+        # AWLC: This change is specific to the Wellcome fork of Archivematica.
+        # If you don't pass try_mv_local=True, it falls back to rsync to move
+        # tarballs around the filesystem, which has issues with very large packages.
+        #
+        # See https://github.com/wellcomecollection/platform/issues/4341
+        #
+        return self.space.move_rsync(src_path, dest_path, try_mv_local=True)
 
     def move_from_storage_service(self, source_path, destination_path, package=None):
         """ Moves self.staging_path/src_path to dest_path. """
