@@ -539,10 +539,12 @@ def extract_dc_identifiers(mets_path):
     # large METS files, and trying to open one that's too large will cause the
     # running worker to crash.
     for _event, element in etree.iterparse(mets_path):
-        if element.tag != "{http://purl.org/dc/elements/1.1/}identifier":
-            continue
+        if element.tag == "{http://purl.org/dc/elements/1.1/}identifier":
+            yield element.text
 
-        yield element.text
+        # If we don't clear() the element we just received, eventually the worker
+        # runs out of memory and is killed.
+        element.clear()
 
 
 def extract_accession_identifiers(transfer_mets_path):
@@ -557,10 +559,12 @@ def extract_accession_identifiers(transfer_mets_path):
     # large METS files, and trying to open one that's too large will cause the
     # running worker to crash.
     for _event, element in etree.iterparse(transfer_mets_path):
-        if element.tag != "{http://www.loc.gov/METS/}altRecordID":
-            continue
+        if (
+            element.tag == "{http://www.loc.gov/METS/}altRecordID" and
+            element.attrib.get("TYPE") != "Accession ID"
+        ):
+            yield element.text
 
-        if element.attrib.get("TYPE") != "Accession ID":
-            continue
-
-        yield element.text
+        # If we don't clear() the element we just received, eventually the worker
+        # runs out of memory and is killed.
+        element.clear()
