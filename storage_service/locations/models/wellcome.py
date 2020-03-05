@@ -539,12 +539,12 @@ def extract_dc_identifiers(mets_path):
     # large METS files, and trying to open one that's too large will cause the
     # running worker to crash.
     for _event, element in etree.iterparse(mets_path):
-        if element.tag == "{http://purl.org/dc/elements/1.1/}identifier":
-            yield element.text
+        if element.tag == "{http://purl.org/dc/terms/}dublincore":
+            for child in element.getchildren():
+                if child.tag == "{http://purl.org/dc/elements/1.1/}identifier":
+                    yield child.text
 
-        # If we don't clear() the element we just received, eventually the worker
-        # runs out of memory and is killed.
-        element.clear()
+            break
 
 
 def extract_accession_identifiers(transfer_mets_path):
@@ -553,18 +553,21 @@ def extract_accession_identifiers(transfer_mets_path):
     """
     # The Accession identifier is written into the METS header:
     #
+    #   <mets:metsHdr CREATEDATE="2020-03-05T09:25:49">
     #     <mets:altRecordID TYPE="Accession ID">1148</mets:altRecordID>
+    #     ...
+    #   </mets:metsHdr>
     #
     # Note: we have to do iterparse() because Archivematica produces exceptionally
     # large METS files, and trying to open one that's too large will cause the
     # running worker to crash.
-    for _event, element in etree.iterparse(transfer_mets_path):
-        if (
-            element.tag == "{http://www.loc.gov/METS/}altRecordID" and
-            element.attrib.get("TYPE") != "Accession ID"
-        ):
-            yield element.text
+    for _event, element in etree.iterparse("METS.xml"):
+        if element.tag == "{http://www.loc.gov/METS/}metsHdr":
+            for child in element.getchildren():
+                if (
+                    child.tag == "{http://www.loc.gov/METS/}altRecordID" and
+                    child.attrib.get("TYPE") == "Accession ID"
+                ):
+                    yield child.text
 
-        # If we don't clear() the element we just received, eventually the worker
-        # runs out of memory and is killed.
-        element.clear()
+            break
