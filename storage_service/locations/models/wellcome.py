@@ -2,6 +2,7 @@ import errno
 import json
 import logging
 import os
+import re
 import subprocess
 import tempfile
 import time
@@ -10,7 +11,6 @@ from django.db import models
 from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext_lazy as _
 from django.utils.six.moves.urllib.parse import urljoin, urlencode
-from lxml import etree
 from wellcome_storage_service import BagNotFound, StorageServiceClient
 
 from . import StorageException
@@ -535,16 +535,29 @@ def extract_dc_identifiers(mets_path):
     #
     # So we look for instances of "identifier" in the "dc:" namespace.
     #
-    # Note: we have to do iterparse() because Archivematica produces exceptionally
-    # large METS files, and trying to open one that's too large will cause the
-    # running worker to crash.
-    for _event, element in etree.iterparse(mets_path):
-        if element.tag == "{http://purl.org/dc/terms/}dublincore":
-            for child in element.getchildren():
-                if child.tag == "{http://purl.org/dc/elements/1.1/}identifier":
-                    yield child.text
+    # The "correct" thing to do here is to use an XML parser, but these METS
+    # files can be arbitrarily big.  Attempting to use a real XML parser tends
+    # to cause the worker to crash with an out-of-memory error, so instead we
+    # cheat and stream the file manually.
+    #
+    # If the structure of the Archivematica METS breaks, this will fail, so
+    # we rely on it not doing that!
+    #
+    with open(mets_path) as mets_file:
+        for line in mets_file:
+            if not line.strip().startswith("<dc:identifier>"):
+                continue
 
-            break
+            LOGGER.debug("Found line that looks like a dc:identifier: %r", line)
+
+            match = re.match(
+                r"^<dc:identifier>(?P<identifier>[^<]+)</dc:identifier>$", line.strip()
+            )
+
+            if match is None:
+                LOGGER.debug("Line didn't match regex: %r", line)
+            else:
+                yield match.group("identifier")
 
 
 def extract_accession_identifiers(transfer_mets_path):
@@ -553,21 +566,29 @@ def extract_accession_identifiers(transfer_mets_path):
     """
     # The Accession identifier is written into the METS header:
     #
-    #   <mets:metsHdr CREATEDATE="2020-03-05T09:25:49">
     #     <mets:altRecordID TYPE="Accession ID">1148</mets:altRecordID>
-    #     ...
-    #   </mets:metsHdr>
     #
-    # Note: we have to do iterparse() because Archivematica produces exceptionally
-    # large METS files, and trying to open one that's too large will cause the
-    # running worker to crash.
-    for _event, element in etree.iterparse("METS.xml"):
-        if element.tag == "{http://www.loc.gov/METS/}metsHdr":
-            for child in element.getchildren():
-                if (
-                    child.tag == "{http://www.loc.gov/METS/}altRecordID" and
-                    child.attrib.get("TYPE") == "Accession ID"
-                ):
-                    yield child.text
+    # The "correct" thing to do here is to use an XML parser, but these METS
+    # files can be arbitrarily big.  Attempting to use a real XML parser tends
+    # to cause the worker to crash with an out-of-memory error, so instead we
+    # cheat and stream the file manually.
+    #
+    # If the structure of the Archivematica METS breaks, this will fail, so
+    # we rely on it not doing that!
+    #
+    with open(transfer_mets_path) as mets_file:
+        for line in mets_file:
+            if not line.strip().startswith('<mets:altRecordID TYPE="Accession ID">'):
+                continue
 
-            break
+            LOGGER.debug("Found line that looks like a mets:altRecordID: %r", line)
+
+            match = re.match(
+                r'^<mets:altRecordID TYPE="Accession ID">(?P<identifier>[^<]+)</mets:altRecordID>$',
+                line.strip()
+            )
+
+            if match is None:
+                LOGGER.debug("Line didn't match regex: %r", line)
+            else:
+                yield match.group("identifier")
