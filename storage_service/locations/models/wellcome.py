@@ -11,7 +11,7 @@ from django.db import models
 from django.core.urlresolvers import reverse
 from django.utils.translation import ugettext_lazy as _
 from django.utils.six.moves.urllib.parse import urljoin, urlencode
-from wellcome_storage_service import BagNotFound, StorageServiceClient
+from wellcome_storage_service import BagNotFound, RequestsOAuthStorageServiceClient as StorageServiceClient
 
 from . import StorageException
 from . import Package
@@ -89,13 +89,13 @@ FNULL = open(os.devnull, 'w')
 
 
 class WellcomeIdentifier(object):
-    def __init__(self, space_id, external_identifier):
-        self.space_id = space_id
+    def __init__(self, space, external_identifier):
+        self.space = space
         self.external_identifier = external_identifier
 
     def __repr__(self):
-        return "WellcomeIdentifier(space_id=%r, external_identifier=%r)" % (
-            self.space_id, self.external_identifier
+        return "WellcomeIdentifier(space=%r, external_identifier=%r)" % (
+            self.space, self.external_identifier
         )
 
 
@@ -127,7 +127,7 @@ def _find_transfer_mets_path(bag_dir):
         return None
 
 
-def get_wellcome_identifier(src_path, package_uuid, space_id):
+def get_wellcome_identifier(src_path, package_uuid, space):
     """
     By default, Archivematica will use the UUID as the External-Identifier
     when calling the Wellcome Storage.
@@ -196,7 +196,7 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
     try:
         LOGGER.debug("Looking for Dublin-Core identifiers in the METS")
         wellcome_identifier = WellcomeIdentifier(
-            space_id=space_id,
+            space=space,
             external_identifier=get_common_prefix(extract_dc_identifiers(mets_path))
         )
     except NoCommonPrefix as err:
@@ -209,11 +209,11 @@ def get_wellcome_identifier(src_path, package_uuid, space_id):
             LOGGER.debug("Found accession numbers: %r", accession_numbers)
             external_identifier = get_common_prefix(accession_numbers)
 
-            if not space_id.endswith("-accessions"):
-                space_id = "%s-accessions" % space_id
+            if not space.endswith("-accessions"):
+                space = "%s-accessions" % space
 
             wellcome_identifier = WellcomeIdentifier(
-                space_id=space_id,
+                space=space,
                 external_identifier=external_identifier
             )
         except NoCommonPrefix:
@@ -310,14 +310,14 @@ class WellcomeStorageService(S3SpaceModelMixin):
 
         assert package is not None
 
-        space_id = package.misc_attributes["wellcome.space"]
-        source_id = package.misc_attributes["wellcome.external_identifier"]
+        space = package.misc_attributes["wellcome.space"]
+        external_identifier = package.misc_attributes["wellcome.external_identifier"]
         version = package.misc_attributes.get("wellcome.version")
 
         # Look up the bag details by UUID
         bag = self.wellcome_client.get_bag(
-            space_id=space_id,
-            source_id=source_id,
+            space=space,
+            external_identifier=external_identifier,
             version=version
         )
 
@@ -375,12 +375,12 @@ class WellcomeStorageService(S3SpaceModelMixin):
 
         # Use the relative_path as the storage service space ID
         location = package.current_location
-        space_id = location.relative_path.strip(os.path.sep)
+        space = location.relative_path.strip(os.path.sep)
 
         wellcome_identifier = get_wellcome_identifier(
             src_path=src_path,
             package_uuid=package.uuid,
-            space_id=space_id
+            space=space
         )
 
         # The Wellcome Storage reads packages out of S3, so we need to
@@ -405,8 +405,8 @@ class WellcomeStorageService(S3SpaceModelMixin):
         else:
             try:
                 self.wellcome_client.get_bag(
-                    space_id=wellcome_identifier.space_id,
-                    source_id=wellcome_identifier.external_identifier
+                    space=wellcome_identifier.space,
+                    external_identifier=wellcome_identifier.external_identifier
                 )
             except BagNotFound:
                 ingest_type = "create"
@@ -430,11 +430,11 @@ class WellcomeStorageService(S3SpaceModelMixin):
         # Record the attributes on the package, so we can use them to
         # retrieve a bag later.
         package.misc_attributes["wellcome.external_identifier"] = wellcome_identifier.external_identifier
-        package.misc_attributes["wellcome.space"] = wellcome_identifier.space_id
+        package.misc_attributes["wellcome.space"] = wellcome_identifier.space
 
         LOGGER.info(
             "Uploading to Wellcome Storage with external identifier %s, space %s, ingest type %s",
-            wellcome_identifier.external_identifier, wellcome_identifier.space_id, ingest_type
+            wellcome_identifier.external_identifier, wellcome_identifier.space, ingest_type
         )
 
         # For reingests, the package status will still be 'uploaded'
@@ -447,11 +447,11 @@ class WellcomeStorageService(S3SpaceModelMixin):
         # https://github.com/wellcometrust/platform/tree/master/docs/rfcs/002-archival_storage#updating-an-existing-bag
         LOGGER.info("Callback will be to %s", callback_url)
         location = self.wellcome_client.create_s3_ingest(
-            space_id=wellcome_identifier.space_id,
+            space=wellcome_identifier.space,
+            external_identifier=wellcome_identifier.external_identifier,
             s3_key=s3_temporary_path,
             s3_bucket=self.s3_bucket,
             callback_url=callback_url,
-            external_identifier=wellcome_identifier.external_identifier,
             ingest_type=ingest_type,
         )
         LOGGER.info('Ingest_location: %s', location)
