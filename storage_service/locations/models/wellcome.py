@@ -305,7 +305,7 @@ class WellcomeStorageService(S3SpaceModelMixin):
 
         # Ensure the target directory exists. This is where the tarball
         # will be created.
-        dest_dir = os.path.dirname(dest_path)
+        dest_dir = os.path.abspath(os.path.dirname(dest_path))
         mkdir_p(dest_dir)
 
         assert package is not None
