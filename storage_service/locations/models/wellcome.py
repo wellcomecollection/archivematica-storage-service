@@ -32,7 +32,7 @@ DOWNLOAD_BAG_SCRIPT = '''
 import json, sys
 from wellcome_storage_service import download_compressed_bag
 
-bag = json.loads(sys.argv[1])
+bag = json.load(open(sys.argv[1]))
 dest_path = sys.argv[2]
 top_level_dir=sys.argv[3]
 
@@ -336,14 +336,18 @@ class WellcomeStorageService(S3SpaceModelMixin):
         #
         #     OSError: [Errno 7] Argument list too long: 'python'
         #
+        _, manifest_path = tempfile.mkstemp(suffix=".json", prefix="manifest")
         _, script_path = tempfile.mkstemp(suffix=".py", prefix="download_bag")
+
+        with open(manifest_path, "w") as out_file:
+            out_file.write(json.dumps(bag))
 
         with open(script_path, "w") as out_file:
             out_file.write(DOWNLOAD_BAG_SCRIPT)
 
         try:
             subprocess.check_call(
-                ["python", script_path, json.dumps(bag), dest_path, src_name],
+                ["python", script_path, manifest_path, dest_path, src_name],
                 stderr=subprocess.STDOUT
             )
         finally:
