@@ -89,13 +89,15 @@ FNULL = open(os.devnull, 'w')
 
 
 class WellcomeIdentifier(object):
-    def __init__(self, space, external_identifier):
+    def __init__(self, space, external_identifier, internal_identifier):
         self.space = space
         self.external_identifier = external_identifier
+        self.internal_identifier = internal_identifier
 
     def __repr__(self):
-        return "WellcomeIdentifier(space=%r, external_identifier=%r)" % (
-            self.space, self.external_identifier
+        return (
+            "WellcomeIdentifier(space=%r, external_identifier=%r, internal_identifier=%r)"
+            % (self.space, self.external_identifier, self.internal_identifier)
         )
 
 
@@ -197,7 +199,8 @@ def get_wellcome_identifier(src_path, package_uuid, space):
         LOGGER.debug("Looking for Dublin-Core identifiers in the METS")
         wellcome_identifier = WellcomeIdentifier(
             space=space,
-            external_identifier=get_common_prefix(extract_dc_identifiers(mets_path))
+            external_identifier=get_common_prefix(extract_dc_identifiers(mets_path)),
+            internal_identifier=package_uuid
         )
     except NoCommonPrefix as err:
         LOGGER.debug("No common prefix in the Dublin-Core identifiers")
@@ -214,7 +217,8 @@ def get_wellcome_identifier(src_path, package_uuid, space):
 
             wellcome_identifier = WellcomeIdentifier(
                 space=space,
-                external_identifier=external_identifier
+                external_identifier=external_identifier,
+                internal_identifier=package_uuid
             )
         except NoCommonPrefix:
             LOGGER.debug("No common prefix in the accession numbers")
@@ -233,10 +237,18 @@ def get_wellcome_identifier(src_path, package_uuid, space):
         "import sys, bagit; "
         "bag = bagit.Bag(sys.argv[1]); "
         "bag.info['External-Identifier'] = sys.argv[2]; "
+        "bag.info['Internal-Sender-Identifier'] = sys.argv[3]; "
         "bag.save(manifests=True)"
     )
     subprocess.check_call(
-        ["python", "-c", script, bag_dir, wellcome_identifier.external_identifier],
+        [
+            "python",
+            "-c",
+            script,
+            bag_dir,
+            wellcome_identifier.external_identifier,
+            wellcome_identifier.internal_identifier
+        ],
         stdout=FNULL,
         stderr=FNULL
     )
