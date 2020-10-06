@@ -1,0 +1,10 @@
+steps:
+  - label: "Build and publish image"
+    branches: "wellcome-storage-service"
+    command: |
+      make storage_service-publish
+    plugins:
+      - wellcomecollection/aws-assume-role#v0.2.0:
+          role: "arn:aws:iam::299497370133:role/workflow-ci"
+          duration: 900 # 15 minutes
+
