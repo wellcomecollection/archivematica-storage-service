@@ -16,10 +16,15 @@ import argparse
 import os
 import subprocess
 import sys
+import re
 
 # Root of the Git repository
 ROOT = subprocess.check_output([
     'git', 'rev-parse', '--show-toplevel']).decode('ascii').strip()
+
+
+def strip_aws_credentials(unsafe_string):
+    return re.sub(r"(AWS_.+?)=.+?(\s)", r"\1=<hidden>\2", unsafe_string)
 
 
 def _aws_credentials_args():
@@ -110,7 +115,7 @@ if __name__ == '__main__':
     cmd += additional_args
 
     try:
-        print('*** Running %r' % ' '.join(cmd))
+        print('*** Running %r' % strip_aws_credentials(' '.join(cmd)))
         rc = subprocess.call(cmd)
         if rc != 0:
             sys.exit(rc)
