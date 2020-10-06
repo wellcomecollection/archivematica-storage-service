@@ -6,5 +6,5 @@ steps:
       make storage_service-publish
     plugins:
       - cultureamp/aws-assume-role#v0.2.0:
-          role: "arn:aws:iam::975596993436:role/workflow-ci"
+          role: "arn:aws:iam::299497370133:role/workflow-ci"
 
