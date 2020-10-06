@@ -1,10 +1,10 @@
 steps:
-  label: "Build and publish image"
-#  TODO change this to wellcome-storage-service before merging
-  branches: "wellcome-use-buildkite"
-  command: |
-    make storage_service-publish
-  plugins:
-    - cultureamp/aws-assume-role#v0.2.0:
-        role: "arn:aws:iam::975596993436:role/storage-ci"
+  - label: "Build and publish image"
+    #  TODO change this to wellcome-storage-service before merging
+    branches: "wellcome-use-buildkite"
+    command: |
+      make storage_service-publish
+    plugins:
+      - cultureamp/aws-assume-role#v0.2.0:
+          role: "arn:aws:iam::975596993436:role/storage-ci"
 
