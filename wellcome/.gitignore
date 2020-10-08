@@ -1,5 +1,0 @@
-*.zip
-.terraform
-terraform.plan
-config
-credentials
