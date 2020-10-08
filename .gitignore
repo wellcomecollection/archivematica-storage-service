@@ -1,6 +1,7 @@
 # Wellcome specific
 secrets.zip
 .releases
+.idea
 
 *.py[co]
 *.swp
