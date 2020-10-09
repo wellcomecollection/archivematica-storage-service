@@ -1,0 +1,5 @@
+archivematica:
+  image_repositories:
+    - id: archivematica_storage_service
+  name: Archivematica Storage Service
+  role_arn: arn:aws:iam::299497370133:role/workflow-ci

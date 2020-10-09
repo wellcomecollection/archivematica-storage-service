@@ -2,7 +2,6 @@ IMAGE_BUILDER_IMAGE = wellcome/image_builder:25
 PUBLISH_SERVICE_IMAGE = wellcome/publish_service:60
 
 ROOT = $(shell git rev-parse --show-toplevel)
-DOCKER_RUN = $(ROOT)/wellcome/docker_run.py
 
 ACCOUNT_ID = 299497370133
 
@@ -13,14 +12,13 @@ ACCOUNT_ID = 299497370133
 #   $1 - Name of the Docker image.
 #
 define publish_service
-	$(DOCKER_RUN) \
-	    --aws --dind -- \
-	    $(PUBLISH_SERVICE_IMAGE) \
-			--project_id=archivematica \
-			--service_id=$(1) \
-			--account_id=$(ACCOUNT_ID) \
-			--region_id=eu-west-1 \
-			--namespace=uk.ac.wellcome
+	$(ROOT)/docker_run.py \
+        --aws --dind -- \
+            wellcome/weco-deploy:5.0.2 \
+            --project-id=archivematica \
+            --verbose \
+            publish \
+            --image-id="$(1)"
 endef
 
 
