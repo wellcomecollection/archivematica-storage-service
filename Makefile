@@ -31,12 +31,12 @@ define build_image
 	    --dind -- \
 	    wellcome/image_builder:25 \
             --name="$(1)" \
-            --build-arg $(GIT_COMMIT)
+            --build-arg $(GIT_COMMIT) \
             --path="$(2)"
 endef
 
 storage_service-build:
-    $(call build_image,archivematica_storage_service,./Dockerfile)
+	$(call build_image,archivematica_storage_service,./Dockerfile)
 
 storage_service-publish: storage_service-build
 	$(call publish_service,archivematica,archivematica_storage_service)
