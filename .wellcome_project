@@ -1,5 +1,12 @@
 archivematica:
+  environments:
+    - id: prod
+      name: Production
+    - id: staging
+      name: Staging
   image_repositories:
     - id: archivematica_storage_service
+      services:
+        - id: storage-service
   name: Archivematica Storage Service
   role_arn: arn:aws:iam::299497370133:role/workflow-ci
