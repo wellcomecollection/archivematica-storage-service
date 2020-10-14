@@ -100,6 +100,13 @@ class WellcomeIdentifier(object):
             % (self.space, self.external_identifier, self.internal_identifier)
         )
 
+    def with_space(self, new_space):
+        return WellcomeIdentifier(
+            space=new_space,
+            external_identifier=self.external_identifier,
+            internal_identifier=self.internal_identifier
+        )
+
 
 class NoWellcomeIdentifierFound(ValueError):
     def __init__(self):
@@ -223,6 +230,12 @@ def get_wellcome_identifier(src_path, package_uuid, space):
         except NoCommonPrefix:
             LOGGER.debug("No common prefix in the accession numbers")
             raise NoWellcomeIdentifierFound()
+
+    # If this is a test package, we divert it to a separate space.  This prefix
+    # for the dc.identifier is deliberately chosen to be one that would never
+    # appear in a real catalogue record.
+    if wellcome_identifier.external_identifier.startswith("archivematica-dev/TEST"):
+        wellcome_identifier = wellcome_identifier.with_space("testing")
 
     LOGGER.debug("Detected Wellcome identifier as %s", wellcome_identifier)
 
