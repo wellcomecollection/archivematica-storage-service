@@ -199,14 +199,32 @@ def get_wellcome_identifier(src_path, package_uuid, space):
             "Unable to find transfer METS file in bag at path: %r", transfer_mets_path)
         raise NoWellcomeIdentifierFound()
 
+    # Temporary addition for miro ingest into Wellcome Storage Service
+    # Identify metadata flag from transfer package
+    def _is_miro():
+        with open(mets_path) as mets_file:
+            for line in mets_file:
+                if line.strip() == "<ismiro>true</ismiro>":
+                    return True
+
+        return False
+
     # Try to get some identifiers from the METS files.  We try to use the
     # Dublin Core identifiers first, if not the accession number, and if
     # both of those fail we fall back to the package UUID.
     try:
         LOGGER.debug("Looking for Dublin-Core identifiers in the METS")
+
+        external_identifier = get_common_prefix(extract_dc_identifiers(mets_path))
+
+        # Temporary addition for miro ingest into Wellcome Storage Service
+        # Override space if metadata flag identified
+        if _is_miro():
+            space = 'miro'
+
         wellcome_identifier = WellcomeIdentifier(
             space=space,
-            external_identifier=get_common_prefix(extract_dc_identifiers(mets_path)),
+            external_identifier=external_identifier,
             internal_identifier=package_uuid
         )
     except NoCommonPrefix as err:
